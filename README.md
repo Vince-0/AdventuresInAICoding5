@@ -1,243 +1,253 @@
 # Adventures In AI Coding 5
-## HyperQwen — two products on one dense 27B server
+## HyperQwen
 
-**I ran a patched vLLM stack that serves Qwen3.8-27B (W4A16) on one RTX 4090 as two deliberate products:** everyday chat (**Mode A**) and sticky reproduce/edit (**Mode B**). The interesting part is not a single tok/s number — it is the **Mode flip**, the **context ladder** to ≥128k, and keeping chat and reproduce honest as separate configs.
+## What
 
-**Upstream:** [syv-ai/HyperQwen](https://github.com/syv-ai/HyperQwen) · [docs/wsl2-4090.md](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md) · lab plan: [`05_IMPLEMENTATION.md`](../05_IMPLEMENTATION.md)
+HyperQwen is a packaged way to run **Qwen3.8-27B** on one 24 GB GPU.
 
-**Primer (how LLMs / attention / KV work in plain language):** [AI Theory](https://github.com/Vince-0/AI_Theory)
+The weights are stored in 4-bit (`W4A16`) so the model fits in that memory. The server is a pinned build of [vLLM](https://github.com/vllm-project/vllm) with HyperQwen’s patches and scripts already applied. You call it with the usual OpenAI-style API. On this machine that is `http://127.0.0.1:18020/v1`, model name `qwen3.8-27b`.
 
-**Hardware this run (`ran_here`):** WSL2 Ubuntu, RTX **4090 24 GB**, ~**27 GiB** host RAM, driver **610.88**, power limit **450 W** (100%), bare-metal venv (**no Docker** in this distro). API `:18020`.
+A small helper model (**DFlash2**) guesses the next few words. The 27B model checks that guess in one step. Checking a short block is faster than generating one word at a time with the full model.
+
+Two check lengths:
+
+- **Mode A** checks about **7** guessed tokens. This is the setting for normal chat and coding.
+- **Mode B** checks about **15** guessed tokens. It can also copy phrases straight from the prompt. This is the setting for quoting or editing a long document you already pasted in.
+
+How much text the server can hold is a separate knob, `CTX`:
+
+| Setting | About how much text | How conversation memory is stored |
+|---------|---------------------|-----------------------------------|
+| `fast` | 64k tokens | Full precision. What I leave running day to day right now. |
+| `long` | 128k–150k tokens | Compressed to 8-bit. |
+| `huge` | 245k tokens | Compressed further (KVarN). This boot is broken on the current driver until the memory pin is retuned. |
+
+**Upstream:** [syv-ai/HyperQwen](https://github.com/syv-ai/HyperQwen) · [WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md) · lab plan: [`05_IMPLEMENTATION.md`](../05_IMPLEMENTATION.md)
+
+**Primer (how LLMs, attention, and KV work):** [AI Theory](https://github.com/Vince-0/AI_Theory)
+
+**This run:** WSL2 Ubuntu, RTX 4090 24 GB, about 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv (Docker is not installed in this WSL). API on port 18020.
 
 ---
 
 ## Key concepts
 
-Read this first if the jargon below is new. Broader LLM / attention / KV vocabulary: **[AI Theory](https://github.com/Vince-0/AI_Theory#key-concepts)**.  
-**New this adventure** (vs #3 MTP / #4 MoE-offload): block speculation, Mode A/B, lookup drafting, prefix cache, KV compression / context ladder.
+New in this write-up, compared with #3 (MTP on small models) and #4 (MoE models bigger than the GPU): block guesses, Mode A/B, copying from the prompt, a prefix cache, and smaller conversation memory so long chats fit.
 
-### Glossary (ELI5)
+More background: [AI Theory — key concepts](https://github.com/Vince-0/AI_Theory#key-concepts).
 
-| Term | ELI5 | On this adventure |
-|------|------|-------------------|
-| **VRAM** | Fast memory **on the GPU** — the desk where the model must sit to run quickly | **24 GB** desk. Holds weights + drafter + conversation memory (**KV**) |
-| **Dense 27B** | One big brain that runs **all** its layers for every token (not a MoE specialist library) | Qwen3.8-**27B** — opposite of FreeToken’s “experts in RAM” story |
-| **W4A16** | Pack the **recipe cards** (weights) into **4-bit** boxes; do the live math in **~16-bit** | Why 27B fits one 4090 without host-RAM MoE tricks |
-| **KV cache** | The model’s **scratch notes** for “what did I already see in this chat?” | Longer chat / bigger sticky doc → bigger notes → less free VRAM |
-| **Prefill vs decode** | **Prefill** = read the whole homework sheet once; **decode** = write the answer one word at a time | Sticky docs tax **prefill**; chat “feel” is mostly **decode** tok/s |
-| **Frozen vLLM + HyperQwen** | Someone froze a known-good engine version and taped on tested patches + scripts | Install → patch → prepare → `start_qwen.sh` — not DIY patch soup |
-| **Speculative decoding** | A **cheap guesser** drafts the next words; the **main model** checks them. Good guesses → many words per GPU step | Family includes #3 **MTP**; here the star is **DFlash2** |
-| **DFlash2** | Guesser proposes a **block** of tokens in one go; main model **verifies** the block | `SPEC=dflash2` — shared by Mode A and B |
-| **Mode A** | Short verify block (**~7** tokens) — tuned for normal chat | Daily driver on `:18020` |
-| **Mode B** | Longer verify block (**~15**) — tuned when the answer **copies** the prompt | Quote / edit / sticky docs; costs headroom vs Mode A |
-| **Lookup drafting** | If the answer is mostly “copy from above,” fill guesses from **history** instead of inventing | Why Mode B can fly on reproduce workloads |
-| **Prefix cache** | Don’t re-read the same long prompt from scratch every turn — keep the **scratch notes** | Cold turn pays; turn-2 wall collapses when the prefix hits |
-| **`-fast` variant** | Extra shrink/repack of a few sensitive pieces (output head / draft bits) | Auto-picked when present; better decode path on the same card |
-| **Context ladder** | Different “how we store scratch notes” settings for short / long / huge chats | **fast** (~64k) → **long** (~128k+) → **huge** (~245k). This lab wants **≥128k** |
-| **KVarN** | Squeeze the **scratch notes** (KV) into fewer bits so more history fits | `CTX=huge`: ~245k window in ~**4.9 GiB** KV pin |
-| **Marlin repack** | At load time, rewrite 4-bit weights into a GPU-friendly layout | Can OOM on WSL if the memory allocator is wrong — see Issues |
+### Glossary
 
-### ELI5 walkthrough — ideas this stack teaches
+| Term | Meaning | On this run |
+|------|---------|-------------|
+| **VRAM** | Memory on the GPU. The model has to live here to run quickly. | 24 GB. Holds the weights, the small guesser, and conversation memory (KV). |
+| **Dense 27B** | One model that runs every layer for every token. | Qwen3.8-27B. Different from #4, where specialist layers sat in system RAM. |
+| **W4A16** | Weights stored in 4-bit. Math done in about 16-bit. | How 27B fits on one 4090. |
+| **KV cache** | Memory of what the model has already read in this chat. | Longer chats and bigger pasted docs use more of it, so less VRAM is left. |
+| **Prefill vs decode** | Prefill reads the prompt. Decode writes the reply one token at a time. | A long pasted doc is mostly a prefill cost. Chat speed is mostly decode tok/s. |
+| **Frozen vLLM + HyperQwen** | A known vLLM version, plus patches and scripts that were tested together. | Install, patch, prepare weights, `start_qwen.sh`. |
+| **Speculative decoding** | A small model guesses the next tokens. The big model accepts or rejects them. | #3 used MTP for this. Here the guesser is DFlash2. |
+| **DFlash2** | The guesser proposes a block of tokens. The 27B model checks the block. | `SPEC=dflash2` for both Mode A and Mode B. |
+| **Mode A** | Check about 7 tokens per step. | Daily chat on port 18020. |
+| **Mode B** | Check about 15 tokens per step. Better when the reply copies the prompt. | Quote and edit jobs. Uses more VRAM headroom than Mode A. |
+| **Lookup drafting** | If the reply is mostly text already in the prompt, take those tokens from history. | Why Mode B is fast on copy-the-document jobs. |
+| **Prefix cache** | Keep the KV for a prompt you will send again, so the next turn skips re-reading it. | The first turn on a long doc is slow. The second turn on the same doc is much faster. |
+| **`-fast` weights** | Extra repack of a few hot parts (output head and draft bits). | Used automatically when those files are present. |
+| **Context profiles** | Three ways to store KV, which sets how long a chat can be. | `fast` ~64k, `long` ~128k+, `huge` ~245k. I want at least 128k when `huge` boots again. |
+| **KVarN** | KV stored in fewer bits so a longer chat fits. | `CTX=huge`: about a 245k window in about 4.9 GB of KV, before the driver update. |
+| **Marlin repack** | At startup, rewrite the 4-bit weights into a layout the GPU kernels want. | Can run out of memory on WSL if the allocator setting is wrong. See Issues. |
 
-1. **Two memory wallets**  
-   **Weights** (the model file) and **KV** (chat/scratch notes) both spend **VRAM**. Making the chat longer does not change the file size — it grows the notes until the desk is full.
+### How the pieces fit
 
-2. **Guess then check (DFlash2)**  
-   Writing every token with the full 27B is like asking a professor to dictate one letter at a time. A small assistant **guesses a phrase**; the professor **marks it**. When the assistant is often right, you finish pages faster. That is **block speculative decoding**.
+1. **Two things share the GPU.** The weight file and the KV (conversation memory) both use VRAM. A longer chat does not make the weight file bigger. It grows the KV until the card is full.
 
-3. **Same brain, two jobs (Mode A vs B)**  
-   Chat invents new words → short verify (**A**). Paste-a-doc and quote it back → longer verify + **lookup** (**B**). One server, two products — not one magic tok/s.
+2. **Guess, then check.** DFlash2 proposes a short phrase. The 27B model marks which tokens are right. When the guesses are often right, the reply finishes in fewer full-model steps.
 
-4. **Copy can be cheaper than invent (lookup + prefix cache)**  
-   If the answer is already in the prompt, the stack can **match history** and **reuse KV** for the shared prefix. Cold sticky read is still expensive; the **second** turn on the same doc is where agents win.
+3. **Mode A and Mode B are the same weights.** Mode A uses a short check, for chat where the next words are new. Mode B uses a longer check and can copy from the prompt, for quote and edit jobs.
 
-5. **Long context is a KV problem**  
-   “Support 256k” means little if the **notes** do not fit. The **context ladder** changes how notes are stored (**int8** / **KVarN**), so **≥128k** is a real product setting here, not a marketing ceiling.
+4. **Copying from the prompt is cheaper than inventing.** Lookup fills guesses from text already in the prompt. The prefix cache reuses KV for the shared front of the prompt. The first read of a long doc is still slow. The next turn on that same doc is where an agent feels fast.
 
-6. **Quantization is not one switch**  
-   **W4A16** shrinks weights; **`-fast`** tunes hot pieces; **KVarN** shrinks KV. Three different “make it smaller” stories.
+5. **A long context window only counts if the KV fits.** `long` and `huge` change how KV is stored (8-bit, or KVarN). On this box, 128k and up is a real setting, as long as `huge` can boot.
 
-Background primer: [AI Theory](https://github.com/Vince-0/AI_Theory) (tokenize → attention/KV → dense vs MoE → serve).
+6. **Three different ways to shrink memory.** W4A16 shrinks the weights. `-fast` repacks a few hot parts. KVarN shrinks the KV. They are separate.
 
 ---
 
 ## Why
 
-Local AI usually collapses to one number: “how many tok/s?” That hides product design. A server that is great at **chat** is often mediocre at **reproduce a long sticky document**, and the reverse.
+People usually ask one question: how many tokens per second? That misses the split this server is built around. A setup that is good at chat can be poor at quoting a long document, and the other way around.
 
-HyperQwen’s bet on a **24 GB** card:
+On a 24 GB card, HyperQwen does three things:
 
-1. Ship a **frozen, patched** vLLM so dense **Qwen3.8-27B** is a supported product, not a weekend science fair.
-2. Expose **two modes** on the same weights: chat (**A**) vs reproduce/edit (**B**).
-3. Keep **long context** (here: **≥128k**) as a first-class knob via the **CTX** ladder — not an afterthought.
+1. Ship one vLLM version and a patch set so Qwen3.8-27B is something you can install, not something you assemble from forum posts.
+2. Offer two modes on the same weights: chat (A) and quote/edit (B).
+3. Offer longer context through the `CTX` settings. On this lab the bar is at least 128k.
 
-This write-up is a **lab notebook**: what booted under WSL, what Mode A/B actually felt like, what ≥128k required, and what I would leave running.
+This note is what actually booted under WSL, how Mode A and Mode B behaved, what 128k needed, and what I leave running.
 
-### Why not just stock vLLM / llama.cpp / buy another stack?
+### Other ways to run a local model
 
-| Approach | Idea | Gap for *this* question |
-|----------|------|-------------------------|
-| Stock vLLM | Serve whatever fits | You rebuild the long-ctx / DFlash / requant recipe yourself; Mode A vs B is undocumented folklore |
-| llama.cpp GGUF | Quantize dense 27B into VRAM | Fine for fitted GGUF; different stack — no HyperQwen DFlash2 Mode flip or shipped KVarN ladder |
-| FreeToken MoE-offload | MoE **≫ VRAM** via host-RAM experts | Different wall (RAM + PCIe). Stronger C0 on gpt-oss here; not “dense 27B Mode A/B” |
-| Buy more VRAM | Bigger card holds more | Expensive; HyperQwen asks what **one 24 GB** card can do as a dual product |
-| **HyperQwen** | Patched vLLM + W4A16 + DFlash2 + CTX profiles | **Two products** + **≥128k** dense serve on consumer VRAM |
+| Approach | What it is good at | Where it misses this job |
+|----------|--------------------|--------------------------|
+| Stock vLLM | Serving a model that fits | You build the long-context, DFlash, and requant steps yourself. Mode A vs Mode B is not documented. |
+| llama.cpp GGUF | A quantized dense model in VRAM | Fine for a GGUF that fits. No HyperQwen DFlash2 mode switch, and no KVarN profiles. |
+| FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Different limit (RAM and the PCIe bus). Higher quiz score here. Not a dense 27B with Mode A/B. |
+| A bigger GPU | More VRAM, fewer tricks | Costs more. This experiment is what one 24 GB card can do. |
+| **HyperQwen** | Patched vLLM, W4A16, DFlash2, CTX profiles | Dense 27B, two modes, and a path to 128k+ on a consumer card. |
 
 ---
 
 ## How
 
-**Path chosen:** bare-metal `venv` + HyperQwen `docs/install.md` (Docker missing in this WSL guest).
+Docker is not installed in this WSL, so this is a normal Python venv and HyperQwen’s `docs/install.md`.
 
-1. Clone HyperQwen; `.env` with `SPEC=dflash2`, `PREFIX_CACHE=1`, `VLLM_WSL2_ENABLE_PIN_MEMORY=1`, `HOST=127.0.0.1`, `GPU_UTIL=0.90`.
-2. `pip install vllm==0.32.0` (+ pins); `bash patches/apply.sh`.
-3. Prepare weights: AutoRound **W4A16** → **`-fast`** → **DFlash2** drafter (`prepare/` scripts).
-4. Install **KVarN** for `CTX=huge` (`bash kvarn/install.sh`).
-5. **Boot fix (WSL / driver 610.x):**  
+1. Clone HyperQwen. `.env` has `SPEC=dflash2`, `PREFIX_CACHE=1`, `VLLM_WSL2_ENABLE_PIN_MEMORY=1`, `HOST=127.0.0.1`, `GPU_UTIL=0.90`.
+2. `pip install vllm==0.32.0` (plus the pinned deps). `bash patches/apply.sh`.
+3. Prepare weights: AutoRound W4A16, then `-fast`, then the DFlash2 drafter (`prepare/` scripts).
+4. Install KVarN for `CTX=huge` (`bash kvarn/install.sh`).
+5. WSL / driver 610.x boot fix:  
    `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False,max_split_size_mb:128`  
-   Plain `:False` OOMs mid-Marlin; `:True` dies at KV init here.
-6. `bash single-user/start_qwen.sh` → `http://127.0.0.1:18020/v1` (served name `qwen3.8-27b`).
-7. **Mode B:** set `DFLASH_TOKENS=15`, restart. **Mode A:** remove it, restart.
-8. **Context:** set `CTX=long` or `CTX=huge` (this notebook ignores “fast-only” as the product target).
+   `expandable_segments:False` alone runs out of memory during Marlin. `:True` dies while KV is starting.
+6. `bash single-user/start_qwen.sh` → `http://127.0.0.1:18020/v1` (name `qwen3.8-27b`).
+7. Mode B: set `DFLASH_TOKENS=15` and restart. Mode A: unset it and restart.
+8. Context: `CTX=long` or `CTX=huge`. `fast` is the one that boots today. `huge` is the one I want once the KV pin fits again.
 
 ```bash
 cd ~/LLM/HyperQwen
 set -a && source .env && set +a
-# Prefer ≥128k product:
-#   CTX=huge   # ~245k KVarN (pair-programming default here)
-#   CTX=long   # ~128–150k int8 KV; optional SPEC=mtp control
+# CTX=huge   # ~245k KVarN — wanted, currently OOMs
+# CTX=long   # ~128–150k int8 KV
+# CTX=fast   # what is running
 export PATH="$PWD/venv/bin:$PATH"
 bash single-user/start_qwen.sh
 curl -s -H "Authorization: Bearer $VLLM_API_KEY" http://127.0.0.1:18020/health
 ```
 
-**Sizing rule:** VRAM holds **weights + drafter + KV**. Leave shipped `KV_MEM` alone on stock `-fast` unless you measured a need. Host RAM is for OS/prepare — not an MoE expert pool.
+VRAM holds weights, the drafter, and KV. Leave the shipped `KV_MEM` alone on stock `-fast` unless you have measured a reason to change it. System RAM here is for the OS and for preparing weights. It is not an expert pool.
 
-**Thinking off for sensors:** pass `chat_template_kwargs.enable_thinking=false` or short quizzes fill `max_tokens` with reasoning and `content=null`.
+For short quizzes and for agents, turn thinking off (`chat_template_kwargs.enable_thinking=false`). If thinking is on, the reply budget fills with reasoning and `content` comes back empty.
 
 ---
 
 ## Measuring
 
-Two different scores — do not mix them:
+Three scores. They answer different questions.
 
-| Name | Plain meaning | How to read it |
-|------|---------------|----------------|
-| **Speed (Layer B)** | How fast the model *writes* after warmup | **tok/s** on short decode (wall incl. TTFT). Higher = snappier typing feel. |
-| **Coding quiz (C0)** | Can it write small correct Python? | Fixed prompts → extract code → run checks → **passed/total**. |
-| **Mode B sticky** | Exact marker quote + prefix-cache wall | Pass/fail quote at **≥8k–24k** docs under **CTX=huge**; log `cached_tokens`. |
+| Name | What it measures | How to read it |
+|------|------------------|----------------|
+| **Speed (Layer B)** | How fast the model writes after warmup | tok/s on a short decode, wall time including time to first token. Higher feels snappier. |
+| **Coding quiz (C0)** | Small correct Python | Fixed prompts, extract code, run checks, passed/total. |
+| **Mode B sticky** | Can it quote a marker inside a long doc, and does the prefix cache help? | Pass/fail quote on 8k–24k docs under `CTX=huge`. Log `cached_tokens`. |
 
-Artifacts under `~/LLM/HyperQwen/bench-results/` (`c1_mode_a_decode.jsonl`, `c1_mode_a_ctx_huge.json`, `c0_mode_a.json`, `c3_c4_mode_b.json`, `exp_mode_b_ctx_huge.json`, …).
+Logs are under `~/LLM/HyperQwen/bench-results/` (`c1_mode_a_decode.jsonl`, `c1_mode_a_ctx_huge.json`, `c0_mode_a.json`, `c3_c4_mode_b.json`, `exp_mode_b_ctx_huge.json`, and the rebench files).
 
-**Honesty labels:** `ran_here` = this 4090/WSL box · `cited_other_hw` = upstream 3090 / docs (incl. ~381 reproduce — **not** chat).
+`ran_here` means this 4090 under WSL. `cited_other_hw` means a number from upstream docs or another card (including ~381 tok/s on reproduce jobs, which is not a chat number).
 
 ---
 
 ## Results
 
-### Mode A vs Mode B (this adventure)
+### Mode A and Mode B
 
-| Role | Config | Speed / sticky | Sensor | Takeaway |
-|------|--------|----------------|--------|----------|
-| **Mode A daily (re-bench)** | `dflash2` · n=7 · PC=1 · **CTX=fast** · stock graphs | Warm median **175.1 tok/s** (151 tok; `rebench_mode_a_ctx_fast_pl450_stock.json`) | C0 **14/24** (`c0_mode_a_pl450_stock.json`) | After PL **450 W** + driver/fw update. Short decode draws ~**285 W** (not PL-bound). |
-| **Mode A (pre-update baseline)** | same · **CTX=fast** | Warm median **115.8 tok/s** (`c1_mode_a_decode.jsonl`) | C0 **14/24** | Same Layer B protocol; **+51%** decode after update |
-| **Mode A @ huge (pre-update)** | · **CTX=huge** | Warm median **~113.6 tok/s** (`c1_mode_a_ctx_huge.json`) | — | Stock KVarN pin **~4.9 GiB** / window **245,760** worked then |
-| **Mode A @ huge (re-bench)** | · **CTX=huge** | **Parked** — stock pin no longer fits (~4.51 GiB free after weights vs ~4.56–4.89 needed); trimmed boots OOM in draft/KVarN warmup | — | Retune `KV_MEM`/`MAX_LEN` before claiming ≥128k again on this driver/fw |
-| **Mode B reproduce** | + `DFLASH_TOKENS=15` · **CTX=huge** | Marker quote **PASS @ 8k → 24k** (pre-update; `exp_mode_b_ctx_huge.json`) | Sticky quote PASS | Not re-run this pass — needs working huge boot first |
-| Upstream cite | 3090 / docs | ~127 chat / ~381 reproduce | — | `cited_other_hw` — **381 ≠ chat** |
+| Role | Config | Speed / sticky | Quiz | Takeaway |
+|------|--------|----------------|------|----------|
+| **Mode A, current** | `dflash2`, n=7, prefix cache on, `CTX=fast` | Warm median **175.1 tok/s** (151 tokens; `rebench_mode_a_ctx_fast_pl450_stock.json`) | C0 **14/24** (`c0_mode_a_pl450_stock.json`) | After power limit 450 W and a driver/firmware update. Short decode draws about **285 W**, under the power limit. |
+| **Mode A, before that update** | same, `CTX=fast` | Warm median **115.8 tok/s** (`c1_mode_a_decode.jsonl`) | C0 **14/24** | Same speed test. About **+51%** after the update. |
+| **Mode A, huge, before the update** | `CTX=huge` | Warm median **~113.6 tok/s** (`c1_mode_a_ctx_huge.json`) | — | Stock KVarN pin ~4.9 GB, window 245,760, booted then. |
+| **Mode A, huge, re-bench** | `CTX=huge` | Did not boot. After weights load, about 4.51 GB free. The pin wants about 4.56–4.89 GB. Smaller pins still OOM during draft/KVarN warmup. | — | Retune `KV_MEM` / `MAX_LEN` before calling 128k done on this driver. |
+| **Mode B reproduce** | `DFLASH_TOKENS=15`, `CTX=huge` | Marker quote **passed from 8k through 24k** (before the update; `exp_mode_b_ctx_huge.json`) | Quote passed | Not re-run. Needs `huge` to boot first. |
+| Upstream (other hardware) | 3090 / docs | ~127 chat / ~381 reproduce | — | `cited_other_hw`. 381 is a reproduce figure, not chat. |
 
-### Compared to other hosts on this lab
+### Other servers on this machine
 
-| Stack | Speed | C0 | Role vs HyperQwen |
-|-------|-------|----|-------------------|
-| **HyperQwen Mode A** (4090, re-bench) | **~175 tok/s** @ fast | **14/24** | **Daily dense chat** on `:18020` (huge parked pending KV retune) |
-| gpt-oss FreeToken (4090 re-bench) | **~54.7 tok/s** | **20/24** | Stronger quiz; MoE-offload product — pin moe/KV (auto OOM’d on 24 GB) |
-| gpt-oss FreeToken (3080, #4) | ~45.5 tok/s | 19/24 | Prior card; same recipe |
-| Qwen3.5-4B-MTP (#3 class) | ~130–148 tok/s | ~5–8/28 | Snappy tiny; thinner quiz |
+| Stack | Speed | C0 | Compared with HyperQwen |
+|-------|-------|----|-------------------------|
+| **HyperQwen Mode A** (4090, re-bench) | **~175 tok/s** at `fast` | **14/24** | Daily dense chat on port 18020. `huge` parked. |
+| gpt-oss FreeToken (4090 re-bench) | **~54.7 tok/s** | **20/24** | Higher quiz score. MoE offload. Auto cache size OOMed on 24 GB. |
+| gpt-oss FreeToken (3080, #4) | ~45.5 tok/s | 19/24 | Same recipe, previous card. |
+| Qwen3.5-4B-MTP (#3 class) | ~130–148 tok/s | ~5–8/28 | Fast small model. Weaker quiz. |
 
-**4090 gpt-oss note:** `--moe-cache-auto` alone OOM’d; apples-to-apples speed config used **moe=316 / kv≈4125**. See `FreeToken/bench-results/compare_3080_vs_4090_gpt-oss.md`.
+**4090 gpt-oss:** `--moe-cache-auto` alone OOMed. The speed run used **moe=316 / kv≈4125**. Notes in `FreeToken/bench-results/compare_3080_vs_4090_gpt-oss.md`.
 
-### Claims vs measured (4090 here)
+### What I expected vs what happened
 
-| Claim / expectation | Measured (`ran_here`) |
-|---------------------|------------------------|
-| Boots on WSL2 4090 | Yes — after `max_split_size_mb:128` |
-| Mode A chat ~120-class | **Was** 115.8 @ fast / ~113.6 @ huge → **now 175.1** @ fast (re-bench). Huge pending retune |
-| Dual Mode A/B on one weights tree | Yes — env flip + restart |
-| Sticky reproduce with long prefix | **Mode B + CTX=huge**: quote OK through **~24k** (pre-update). Re-bench blocked on huge boot |
-| Useful context **≥128k** | Still the product bar; **CTX=huge** stock pin needs retune after this driver/fw |
-| Prefix cache helps agents | Yes — large `cached_tokens` + much lower turn-2 wall |
-| C0 vs gpt-oss on same 4090 | HyperQwen **14/24** (unchanged) · gpt-oss **20/24** — FT wins quiz; HQ wins decode speed (gap wider after re-bench) |
-| Upstream ~381 reproduce = chat | **No** — label reproduction-only |
-| PL 90%→100% alone explains +51% | **No** — short decode ~285 W ≪ 405/450 W; gain tracks driver/fw (+ quiet warm boot), not PL headroom |
+| Expectation | On this 4090 |
+|-------------|----------------|
+| Boots on WSL2 | Yes, after `max_split_size_mb:128`. |
+| Mode A chat around 120 tok/s | Was 115.8 at `fast` and ~113.6 at `huge`. Now **175.1** at `fast`. `huge` still needs a retune. |
+| Mode A and Mode B on one weight set | Yes. Change the env var and restart. |
+| Quote a marker inside a long prompt | Mode B + `CTX=huge`: quote OK through ~24k, before the update. Re-bench blocked because `huge` does not boot. |
+| Useful context of at least 128k | Still the goal. Stock `CTX=huge` pin does not fit after this driver/firmware. |
+| Prefix cache helps agents | Yes. Large `cached_tokens`, and a much shorter second turn. |
+| C0 vs gpt-oss on the same 4090 | HyperQwen **14/24**. gpt-oss **20/24**. FreeToken wins the quiz. HyperQwen wins decode speed. The speed gap is wider after the re-bench. |
+| Upstream ~381 tok/s as a chat number | No. That figure is reproduce-only. |
+| Power limit 90% → 100% explains the +51% | No. Short decode sits around 285 W, under both 405 W and 450 W. The gain lines up with the driver/firmware update and a quieter boot. |
 
-### What I would run day to day
+### What I leave running
 
-| Need | Pick |
-|------|------|
-| Dense capable chat / coding host on 24 GB | **HyperQwen Mode A · CTX=fast** for now (`:18020`); restore **CTX=huge** after KV retune |
-| Quote / edit / sticky long prefix | **HyperQwen Mode B** + **CTX=huge** (flip `DFLASH_TOKENS=15`, restart) — blocked until huge boots again |
-| Higher C0 quiz / MoE-offload | FreeToken **gpt-oss** (`:1919`) — different product |
-| Snappy tiny agent feel | #3-class MTP 4B — different product |
+| Job | What I use |
+|-----|------------|
+| Dense chat and coding on 24 GB | **HyperQwen Mode A, `CTX=fast`**, port 18020. `CTX=huge` after the KV pin is retuned. |
+| Quote or edit a long prompt | **HyperQwen Mode B** (`DFLASH_TOKENS=15`) and **`CTX=huge`**. Blocked until `huge` boots. |
+| Higher quiz score, MoE offload | FreeToken **gpt-oss** on port 1919. |
+| A small fast agent | A #3-class MTP 4B. |
 
-One server, two Mode configs — not one fake “best tok/s.”
+### Context length
 
-### Context ladder (why ≥128k mattered)
+| Profile | Rough window | KV | When I use it |
+|---------|--------------|----|----------------|
+| `CTX=fast` | ~64k | bf16-class | What is up now. Also the short smoke test. |
+| `CTX=long` | ~128–150k | int8 / fp8 | 128k without KVarN. |
+| `CTX=huge` | ~245k | KVarN, ~4.9 GB pin before the update | The long-chat target. After the driver update the stock pin OOMs. Stay on `fast` until it is retuned. |
 
-| Profile | Rough window | KV idea | When I use it |
-|---------|--------------|---------|----------------|
-| `CTX=fast` | ~64k | bf16-class KV | Control / short smoke only |
-| `CTX=long` | ~128–150k | int8 / fp8 KV paths | ≥128k without KVarN |
-| `CTX=huge` | ~245k | **KVarN** ~4.9 GiB pin (pre-update) | Pair-programming bar — **re-bench parked**: stock pin OOMs after driver/fw; leave **CTX=fast** until retuned |
+With `CTX=huge` up, Mode B’s quote test passed through about 24k. Passing only at 8k is not the result I care about.
 
-Mode B sticky work that failed under short CTX **passed through ~24k** once `CTX=huge` was live. For this experiment I am **not** interested in “it works at 8k” as the success story.
-
-Optional control: `SPEC=mtp` + `CTX=long` → window **150k**, warm short decode **~101.5 tok/s**, 8k TTFT ~3.4 s → ~0.65 s cached (`exp_mtp_ctx_long.json`).
+Optional check: `SPEC=mtp` and `CTX=long` gave a 150k window, warm short decode about **101.5 tok/s**, and 8k time-to-first-token about 3.4 s cold and about 0.65 s once cached (`exp_mtp_ctx_long.json`).
 
 ---
 
-## Agents (Hermes + OpenCode / OmO harness)
+## Agents (Hermes, OpenCode, OmO)
 
-Same idea as prior adventures: drive a local OpenAI-compatible server from a harness — now including a full **coding-agent** loop, not only one-shot sensors.
+Same pattern as earlier adventures: a local OpenAI-compatible server, plus a harness in front of it. This time the harness can plan, call tools, and write files.
 
 ```text
-# Direct API / Hermes / short sensors
+# Direct API, Hermes, short tests
 base_url = http://127.0.0.1:18020/v1
 model    = qwen3.8-27b
 # Prefer chat_template_kwargs.enable_thinking=false
 
-# OpenCode + oh-my-openagent (OmO; successor to “ompi”)
-# → thinking-off proxy (injects enable_thinking=false + floors max_tokens)
-base_url = http://127.0.0.1:18021/v1   # proxy → :18020
+# OpenCode + oh-my-openagent (OmO)
+# The proxy turns thinking off and raises max_tokens if the client sends a tiny cap.
+base_url = http://127.0.0.1:18021/v1   # proxy in front of :18020
 model    = hyperqwen/qwen3.8-27b       # ~/.config/opencode/opencode.json
 ```
 
-- Hermes one-shot → **`PHASE7_OK`** (temporary `model.base_url` override; restored afterward).
-- Mode A coding smoke (`fizzbuzz`) — pass in **~0.64 s**.
-- Mode B sticky quote — pass under **CTX=huge** through **~24k** (see Results).
-- **OpenCode 1.19.5 + oh-my-openagent** → HyperQwen Mode A: built playable **`~/LLM/web-tetris`** (vanilla `index.html` / `game.js` / `style.css` / `README.md`) with real tool calls (`write` / `edit` / `bash` / …).
+- Hermes one-shot returned **`PHASE7_OK`** (temporary `model.base_url` override, then put back).
+- Mode A coding smoke (`fizzbuzz`) passed in about **0.64 s**.
+- Mode B sticky quote passed under `CTX=huge` through about **24k** (see Results).
+- **OpenCode 1.19.5 + oh-my-openagent** on Mode A built a playable **`~/LLM/web-tetris`** (`index.html`, `game.js`, `style.css`, `README.md`) with real tool calls (`write`, `edit`, `bash`).
 
-### Practical use case — local agent harness on HyperQwen
+### OpenCode on this server
 
-**Goal:** use HyperQwen as the model behind an OpenCode-style agent (plan → tools → files), the way Cursor/OmO users expect — not just chat tok/s.
+I wanted HyperQwen behind an OpenCode-style agent: plan, tools, files. Chat tok/s alone does not show whether that loop works.
 
-**Stack that worked (`ran_here`):**
+What ran:
 
 | Layer | Setting |
 |-------|---------|
-| Serve | Mode A `SPEC=dflash2` n=7 · `CTX=fast` · `:18020` |
-| Harness | OpenCode + `oh-my-openagent@latest`; agents in `~/.omo/omo.jsonc` → `hyperqwen/qwen3.8-27b` |
-| Proxy | `HyperQwen/bench-results/thinking_off_proxy.py` on **`:18021`** — forces `chat_template_kwargs.enable_thinking=false` and floors `max_tokens` |
-| OpenCode model limits | `context: 65536`, **`output: 32768`** (was **8192** — too small) |
+| Server | Mode A, `SPEC=dflash2`, n=7, `CTX=fast`, port 18020 |
+| Harness | OpenCode + `oh-my-openagent@latest`. Agents in `~/.omo/omo.jsonc` point at `hyperqwen/qwen3.8-27b`. |
+| Proxy | `HyperQwen/bench-results/thinking_off_proxy.py` on port **18021**. Forces `enable_thinking=false` and raises `max_tokens` if it is too low. |
+| OpenCode limits | `context: 65536`, **`output: 32768`**. It was **8192**, which was too small. |
 | GPU concurrency | `background_task.providerConcurrency.hyperqwen: 1` |
 
-**Findings (tool calling / output budget / context):**
+What I learned:
 
-1. **Thinking vs tools** — With Qwen thinking **on** and `limit.output: 8192`, a Tetris agent step ended `finish_reason=length` with **`reasoning≈8192`, `output=0`**, **zero tool calls**. Same prompt with thinking **off** produced tool use immediately. Agent loops need thinking disabled (or a huge output budget that absorbs reasoning).
-2. **Output budget** — `8192` was our OpenCode `limit.output`, not a HyperQwen ceiling. Cursor docs emphasize **large context** (often **~200k+**), not an 8k completion cap; provider models behind Cursor commonly allow **tens of thousands** of output tokens per step. For Mode A **65k** total window, a practical agent floor is **`output: 16k–32k`** (we use **32768**), leaving headroom for prompt + tools + history (often already **20k–40k** input on later steps). Don’t set output equal to `max_model_len`.
-3. **Tool calling works** — HyperQwen’s `qwen3_coder` path through OpenAI-compatible OpenCode completed multi-step `write`/`edit`/`bash`. Smoke with a one-file write before a big job.
-4. **Context / prefix cache** — Multi-step agent turns showed large **`cache.read`** on follow-ups; prefix cache is load-bearing for harness UX. **CTX=fast (65k)** was enough for a toy web game; bigger repos still want **CTX=huge** (parked pending KV retune).
-5. **Recipe** — `:18020` for chat/sensors; **`:18021` proxy** for OpenCode/OmO; `--auto` for unattended runs; keep HyperQwen concurrency at **1** on this 4090.
+1. **Thinking ate the tool budget.** With thinking on and `limit.output: 8192`, a Tetris step finished with `finish_reason=length`, about **8192 reasoning tokens**, **0 output tokens**, and **no tool calls**. The same prompt with thinking off called tools right away. For an agent loop, turn thinking off, or give reasoning a budget large enough that tools still fit.
+2. **8192 was an OpenCode limit, not a HyperQwen limit.** Cursor’s docs talk about a large context (often ~200k and up). The models behind Cursor often allow tens of thousands of output tokens per step. Mode A’s window here is 65k total. A practical output cap is **16k–32k** (I use **32768**), so the prompt, tools, and history still fit. Later steps were often already **20k–40k** of input. Do not set the output cap equal to `max_model_len`.
+3. **Tool calling works.** HyperQwen’s `qwen3_coder` path, through OpenCode’s OpenAI-compatible client, did multi-step `write` / `edit` / `bash`. Try a one-file write before a large job.
+4. **The prefix cache matters.** Later agent turns showed a large **`cache.read`**. `CTX=fast` (65k) was enough for a small web game. A bigger repo still wants `CTX=huge`, which is parked until the KV pin fits.
+5. **How I run it.** Port 18020 for chat and short tests. Port 18021 (the proxy) for OpenCode/OmO. `--auto` for unattended runs. Keep HyperQwen concurrency at **1** on this 4090.
 
 ```bash
 # Boot HyperQwen, then:
@@ -251,70 +261,72 @@ opencode run --dir ~/LLM/web-tetris -m hyperqwen/qwen3.8-27b --auto "…"
 
 ## Issues
 
-| Symptom | What I did / learned |
-|---------|----------------------|
-| No `docker` in WSL | Bare-metal venv per `docs/install.md` |
-| Marlin OOM mid-load | `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False,max_split_size_mb:128` |
-| `BIND=` ignored on bare-metal | Use **`HOST=127.0.0.1`** |
-| Thinking fills `max_tokens`, `content=null` | `enable_thinking: false` for sensors **and** OpenCode/OmO (proxy `:18021`) |
-| OpenCode agent: `length` with `reasoning=8192`, `output=0`, no tools | Thinking burned `limit.output`; disable thinking + raise **`output` to 32k** (not 8k) |
-| Mode B ≥~12k OOM on short CTX | Raise to **`CTX=huge`** (or long); sticky **~24k** then OK |
-| C0 wall-tok/s ~220–250 | Ignore for speed claims — use Layer B (**175.1** re-bench @ fast) |
-| FreeToken `--moe-cache-auto` on 4090 | OOM — pin moe/KV for compare |
-| Abliterated W4A16 “drop-in” (leminkozey) | Heavier than `-fast`; DFlash/MTP unpack OOMs / WSL hard-crash — not Mode A substitute without `SPEC=off` + smaller KV |
-| WSL OOM sometimes hard-kills the distro | Same VRAM cliff as a CUDA OOM — treat as fatal; keep headroom |
-| Cold AOT + stock graphs @ PL450 hard-reset WSL twice | Quiet boot (no `nvidia-smi` spam); let torch.compile cache warm; then stock FULL/CG=64 boots clean |
-| `CTX=huge` stock `KV_MEM≈4.90 GiB` after update | Weights leave ~**4.51 GiB** free; pin needs ≥~**4.56 GiB** for 245k — retune `KV_MEM`/`MAX_LEN` (trimmed attempts still OOM’d in draft/KVarN path) |
+| What happened | What I did |
+|---------------|------------|
+| No `docker` in WSL | Python venv, following `docs/install.md`. |
+| Out of memory during Marlin load | `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False,max_split_size_mb:128` |
+| `BIND=` ignored on the venv start script | Use **`HOST=127.0.0.1`**. |
+| Thinking fills `max_tokens` and `content` is null | `enable_thinking: false` for quizzes and for OpenCode/OmO (proxy on 18021). |
+| OpenCode: `length`, `reasoning=8192`, `output=0`, no tools | Thinking used the whole output cap. Turn thinking off and set **`output` to 32k**. |
+| Mode B runs out of memory around 12k on a short context | Switch to **`CTX=huge`** (or `long`). Quote then worked out to about **24k**. |
+| C0 wall-clock around 220–250 tok/s | Do not use that as the speed number. Layer B re-bench at `fast` is **175.1**. |
+| FreeToken `--moe-cache-auto` on the 4090 | Out of memory. Pin moe and KV for the comparison. |
+| Abliterated W4A16 as a drop-in (leminkozey) | Heavier than `-fast`. DFlash/MTP unpack OOMs or hard-crashes WSL. Not a Mode A substitute unless you run `SPEC=off` and a smaller KV. |
+| A VRAM OOM sometimes kills the whole WSL distro | Same cliff as a CUDA OOM. Leave headroom. |
+| Cold compile plus stock graphs at 450 W reset WSL twice | Quiet boot (don’t spam `nvidia-smi`). Let the torch.compile cache warm. Then a stock full graph, CG=64, boots cleanly. |
+| `CTX=huge` stock `KV_MEM≈4.90 GB` after the update | Weights leave about **4.51 GB** free. The 245k pin needs at least about **4.56 GB**. Retune `KV_MEM` / `MAX_LEN`. Smaller pins still OOMed in the draft/KVarN path. |
 
 ---
 
 ## Lessons
 
-1. **Two products, one server** — Mode A (chat, n=7) vs Mode B (reproduce, n=15). Never quote upstream ~381 as chat speed.
-2. **Frozen + patched beats DIY** — HyperQwen’s value is the **recipe** (vLLM pin, patches, `-fast`, DFlash2, CTX profiles), not a random checkpoint alone.
-3. **Lookup + prefix cache are the agent features** — Mode B helps when answers **reuse** context; prefix cache makes turn-2 cheap after the cold sticky tax.
-4. **≥128k is a product requirement here** — `CTX=long` / **`CTX=huge`** (KVarN). Short-CTX Mode B cliffs are not the final word.
-5. **Pass × speed × context** — Mode A is faster than gpt-oss on this 4090 but loses C0 (**14** vs **20**/24). Pick the product for the job.
-6. **WSL allocator is part of the recipe** — `max_split_size_mb:128` was load-bearing on driver 610.x.
-7. **Drop-in weights are not drop-in VRAM** — abliterated AutoRound without `-fast` ate the DFlash headroom; stock HyperQwen Mode A stays the daily dense host.
-8. **Agent harness ≠ chat sensor** — OpenCode/OmO needs thinking **off**, a **large** `limit.output` (**~32k** here), and often a thin proxy; 8k + thinking-on silently produces zero tools.
+1. **Mode A and Mode B are two settings of one server.** Chat uses n=7. Reproduce uses n=15. The upstream ~381 tok/s figure is a reproduce number, not chat.
+2. **The useful part is the recipe.** Pinned vLLM 0.32.0, the patch set, `-fast` weights, DFlash2, and the CTX profiles. A checkpoint by itself is not that.
+3. **Lookup and the prefix cache are what make agents feel fast.** Mode B helps when the answer reuses the prompt. The prefix cache makes the second turn cheap after the slow first read.
+4. **I want at least 128k.** That means `CTX=long` or `CTX=huge` (KVarN). Mode B running out of memory on a short context is a config problem, not the end of the test.
+5. **Quiz score, speed, and context are separate.** Mode A is faster than gpt-oss on this 4090 and loses the quiz (14 vs 20 out of 24). Pick the server for the job.
+6. **The WSL allocator setting is part of the install.** `max_split_size_mb:128` was required on driver 610.x.
+7. **A different weight file can blow the VRAM budget.** An abliterated AutoRound build without `-fast` used the room DFlash needs. Stock HyperQwen Mode A stays the daily server.
+8. **An agent harness is not a chat quiz.** OpenCode/OmO needs thinking off, a large `limit.output` (about 32k here), and a small proxy. 8k with thinking on returns no tool calls and no error that says why.
 
-### How HyperQwen differs from “just vLLM”
+### HyperQwen vs a typical vLLM install
 
-| | **Stock vLLM (typical)** | **HyperQwen** |
-|---|--------------------------|---------------|
-| Version story | You chase latest / DIY patches | **Frozen 0.32.0** + tested patch set |
-| Weights | Bring your own quant | Shipped **W4A16** + **`-fast`** + **DFlash2** prepare path |
-| Speculation | Optional MTP / various drafters | First-class **DFlash2** + **Mode A/B** verify length |
-| Long context | Manual KV dtype / length fights | Documented **CTX=fast / long / huge** (KVarN on huge) |
-| WSL | Often tribal knowledge | Explicit pin-memory + allocator gotchas |
+| | Typical vLLM | HyperQwen |
+|---|----------------|-----------|
+| Version | You track upstream and patch yourself | vLLM **0.32.0** plus a tested patch set |
+| Weights | You bring a quant | A **W4A16** path, **`-fast`**, and a **DFlash2** prepare script |
+| Speculation | Optional, several drafters | **DFlash2**, with Mode A/B as the check length |
+| Long context | You pick KV dtype and length | **`CTX=fast` / `long` / `huge`**, KVarN on `huge` |
+| WSL | Whatever you find in issues | Pin-memory flag and the allocator setting above |
 
-### Why not just use llama.cpp?
+### When llama.cpp is the better tool
 
-Often you **should** — for GGUF ecosystem, MTP on small models, or abliterated GGUF experiments (see IDEAS watchlist **M-01**, ≥128k gate).
+Use llama.cpp for the GGUF ecosystem, for MTP on small models, or for abliterated GGUF trials (see the lab watchlist, M-01, with a 128k gate).
 
-Reach for HyperQwen when the question is: **dense Qwen3.8-27B on one 24 GB card**, OpenAI API, **Mode A chat vs Mode B reproduce**, and a supported path to **≥128k**.
+Use HyperQwen when the job is dense Qwen3.8-27B on one 24 GB card, an OpenAI-compatible API, Mode A for chat and Mode B for reproduce, and a supported path toward 128k and up.
 
-### Practical takeaway
+### What I actually do
 
-- Leave **Mode A · CTX=fast** on `:18020` for daily dense chat/coding until **CTX=huge** KV is retuned.
-- For **OpenCode / OmO agents**, use **`:18021` thinking-off proxy** and **`limit.output: 32768`**.
-- Flip to **Mode B** only for sticky quote/edit workloads; needs **CTX=huge** again first.
-- Keep **gpt-oss FreeToken** when C0 / MoE-offload quality matters more than dense decode speed.
-- Label every upstream speed claim **`cited_other_hw`** until it is `ran_here`.
+- Leave **Mode A, `CTX=fast`** on port 18020 for daily chat and coding until **`CTX=huge`** is retuned.
+- For **OpenCode / OmO**, use the thinking-off proxy on **port 18021** and **`limit.output: 32768`**.
+- Switch to **Mode B** for quote and edit jobs, after **`CTX=huge`** boots again.
+- Keep **gpt-oss on FreeToken** when the quiz score matters more than decode speed.
+- Mark upstream speed numbers **`cited_other_hw`** until I have run them here.
 
 ---
 
 ## Reflections
 
-HyperQwen’s consumer dense story **holds** on a 4090 + ~27 GiB WSL box: Mode A re-bench is a real daily host (**~175 tok/s** @ fast after PL450/driver/fw), Mode B remains a real second product once **CTX=huge** boots again, and the interesting work was documenting the **Mode flip** and the **≥128k ladder** — not chasing a single reproduce tok/s. The PL bump did **not** explain the decode jump (short gen sits ~285 W); treat driver/firmware + boot path as the likely levers, and treat huge’s tighter free-VRAM as a real regression to fix next.
+On a 4090 with about 27 GB of system RAM, this works as a daily dense server. Mode A’s re-bench is about **175 tok/s** at `fast` after the 450 W limit and the driver/firmware update. Mode B is still the quote/edit setting, once `CTX=huge` boots again. The useful record is the mode switch and the context settings, not a single reproduce tok/s number.
 
-OpenCode/OmO is now a measured path (web Tetris harness test = IDEAS **I-04** **H-C** smoke). Next harness-axis work lives in **I-04** / ROADMAP **DD-01** / **P3** (Hermes · OpenCode · OmO · [omp.sh](https://omp.sh/) · OpenClaw on fixed HyperQwen). Still open: **CTX=huge** KV retune, optional upstream `bench/run_benchmarks.sh`, whether D-LSA ever beats this stack at length (RESEARCH **R-08**).
+The power-limit change does not explain the speed jump. A short generation sits around 285 W. The driver, the firmware, and the boot path are the likely reasons. `huge` having less free VRAM than before is a real regression to fix next.
+
+OpenCode/OmO is a measured path (the web Tetris run). Next harness comparisons are in the lab notes (Hermes, OpenCode, OmO, [omp.sh](https://omp.sh/), OpenClaw, all on this same HyperQwen). Still open: retune `CTX=huge`, optionally run upstream `bench/run_benchmarks.sh`, and see whether D-LSA beats this stack on long context.
 
 ---
 
 ## Lab status
 
-Checklist and logs: [`05_IMPLEMENTATION.md`](../05_IMPLEMENTATION.md) · artifacts under `~/LLM/HyperQwen/bench-results/`.
+Checklist and logs: [`05_IMPLEMENTATION.md`](../05_IMPLEMENTATION.md). Artifacts under `~/LLM/HyperQwen/bench-results/`.
 
-**Publish:** local draft only — do not commit `.env`, weights, or API keys.
+Do not commit `.env`, weights, or API keys.
