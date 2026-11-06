@@ -7,8 +7,8 @@ Running Qwen3.8-27b on 24GB VRAM.
 
 “Large Qwen models, served fast on the GPUs people actually own.”
 
-HyperQwen patches [vLLM](https://github.com/vllm-project/vllm) inference engine with DFlash2 guessing, copying from the prompt, long-context KV tricks, WSL pin-memory fixes and more.
-They then (cook)[https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md] a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
+[HyperQwen](https://github.com/syv-ai/HyperQwen) patches [vLLM](https://github.com/vllm-project/vllm) inference engine with DFlash2 guessing, copying from the prompt, long-context KV tricks, WSL pin-memory fixes and more.
+They then [cook](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
 
 Vanilla Qwen3.8-27b is about 56GB on disk, this W4A16 build is about 22GB.
 W4A16 means weights (small stored recipe) are stored in 4-bit with 16-bit activations(richer live math) values during the forward pass.
