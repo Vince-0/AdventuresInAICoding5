@@ -22,26 +22,38 @@ The gap between the vanilla model and the quantized model is measured by:
 How the pieces fit together:
 
 ```mermaid
-flowchart LR
-  T[Token IDs] --> E[embed_tokens<br/>int8]
-  E --> B[W4A16 body]
-  B <--> KV[KV cache]
-  B --> H[lm_head<br/>int8]
-  H --> Y[Next token]
-  D[DFlash2] -.->|guess / verify| B
+flowchart TB
+  T[Token IDs]
+
+  subgraph weights["Model weights on GPU"]
+    direction LR
+    E["embed_tokens<br/>~1.2 GB int8"]
+    B["W4A16 body<br/>~17 GB"]
+    H["lm_head<br/>~1.2 GB int8"]
+    D["DFlash2<br/>~1.2 GB"]
+  end
+
+  KV["KV cache<br/>runtime"]
+  Y[Next token]
+
+  T --> E --> B --> H --> Y
+  B <--> KV
+  D -.->|guess / verify| B
 ```
+
+Checkpoint on disk is about **22 GB** after prepare (vanilla BF16 was about **56 GB**). Sizes below are approximate stored weight sizes from HyperQwen’s notes; KV is runtime VRAM, not part of that file.
 
 How to read it:
 
-| Piece | Role |
-|-------|------|
-| **Token IDs** | Your prompt, as numbers |
-| **`embed_tokens` int8** | Front door: IDs → vectors. Prepared to **int8** (was BF16 in the public W4A16 file) |
-| **DFlash2** | Side helper that guesses a short block; the body accepts or rejects (Mode A ~7 / Mode B ~15) |
-| **W4A16 body** | Almost all of the 27B layers, stored 4-bit (AutoRound) |
-| **KV cache** | Remembers this chat so it doesn’t re-read everything; `CTX=fast` / `long` / `huge` changes how it’s stored |
-| **`lm_head` int8** | Back door: vectors → “which word next?” Prepared to **int8** (was BF16) |
-| **Next token** | Final scores → the word that gets emitted |
+| Piece | Approx. size | Role |
+|-------|--------------|------|
+| **Token IDs** | — | Your prompt, as numbers |
+| **`embed_tokens` int8** | **~1.2 GB** (was **~2.5 GB** BF16) | Front door: IDs → vectors |
+| **DFlash2** | **~1.2 GB** W4A16 | Side helper that guesses a short block; the body accepts or rejects (Mode A ~7 / Mode B ~15) |
+| **W4A16 body** | **~17 GB** | Almost all of the 27B layers, stored 4-bit (AutoRound) |
+| **KV cache** | runtime (e.g. `CTX=huge` pin was **~4.9 GB**) | Remembers this chat; `CTX=fast` / `long` / `huge` changes how it’s stored |
+| **`lm_head` int8** | **~1.2 GB** (was **~2.5 GB** BF16) | Back door: vectors → “which word next?” |
+| **Next token** | — | Final scores → the word that gets emitted |
 
 A small helper model (**DFlash2**) guesses the next few words. The 27B model checks that guess in one step. Checking a short block is faster than generating one word at a time with the full model.
 
