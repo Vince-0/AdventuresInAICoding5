@@ -15,8 +15,8 @@ W4A16 means weights (small stored recipe) are stored in 4-bit with 16-bit activa
 The W4A16 quantization is a lossy compression of the weight numbers
 
 The gap between the vanilla model and the quantized model is measured by:
-  1. Task scores: with (IFBench)[https://github.com/allenai/IFBench], give the model a fixed quiz (math, follow instructions, etc.). Count how many it gets right. Compare full model vs 4-bit.
-  2. (Perplexity)[https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md]: with (quality battery)[https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py] show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = more “yeah, that word makes sense.” If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
+  1. Task scores: with [IFBench](https://github.com/allenai/IFBench), give the model a fixed quiz (math, follow instructions, etc.). Count how many it gets right. Compare full model vs 4-bit.
+  2. [Perplexity](https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md): with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = more “yeah, that word makes sense.” If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
   3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = ~0.6% 
 
 How the pieces fit together:
