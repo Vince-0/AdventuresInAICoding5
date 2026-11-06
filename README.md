@@ -36,11 +36,11 @@ How to read it:
 | Piece | Role |
 |-------|------|
 | **Token IDs** | Your prompt, as numbers |
-| **`embed_tokens`** | Front door: IDs → vectors. Prepared to **int8** (was BF16 in the public W4A16 file) |
-| **W4A16 body** | Almost all of the 27B layers, stored 4-bit (AutoRound) |
-| **`lm_head`** | Back door: vectors → “which word next?” Prepared to **int8** (was BF16) |
-| **KV cache** | Remembers this chat so it doesn’t re-read everything; `CTX=fast` / `long` / `huge` changes how it’s stored |
+| **`embed_tokens` int8** | Front door: IDs → vectors. Prepared to **int8** (was BF16 in the public W4A16 file) |
 | **DFlash2** | Side helper that guesses a short block; the body accepts or rejects (Mode A ~7 / Mode B ~15) |
+| **W4A16 body** | Almost all of the 27B layers, stored 4-bit (AutoRound) |
+| **KV cache** | Remembers this chat so it doesn’t re-read everything; `CTX=fast` / `long` / `huge` changes how it’s stored |
+| **`lm_head` int8** | Back door: vectors → “which word next?” Prepared to **int8** (was BF16) |
 | **Next token** | Final scores → the word that gets emitted |
 
 A small helper model (**DFlash2**) guesses the next few words. The 27B model checks that guess in one step. Checking a short block is faster than generating one word at a time with the full model.
