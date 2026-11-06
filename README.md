@@ -19,6 +19,48 @@ The gap between the vanilla model and the quantized model is measured by:
   2. (Perplexity)[https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md]: with (quality battery)[https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py] show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = more “yeah, that word makes sense.” If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
   3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = ~0.6% 
 
+How the pieces fit together:
+
+```mermaid
+flowchart TB
+  subgraph input["Input"]
+    T["Token IDs<br/>(your prompt)"]
+  end
+
+  subgraph weights["Model weights on GPU"]
+    E["embed_tokens<br/>token → vector<br/>prepared: int8<br/>(was BF16 in public W4A16)"]
+    B["Transformer body<br/>most of the 27B<br/>W4A16 AutoRound<br/>(4-bit weights)"]
+    H["lm_head<br/>vector → vocab scores<br/>prepared: int8<br/>(was BF16 in public W4A16)"]
+  end
+
+  subgraph memory["Runtime memory (not the weight file)"]
+    KV["KV cache<br/>conversation scratch notes<br/>CTX=fast / long / huge"]
+  end
+
+  subgraph speculate["Optional speed path"]
+    D["DFlash2 drafter<br/>small W4A16 guesser<br/>Mode A ~7 / Mode B ~15"]
+  end
+
+  subgraph output["Output"]
+    Y["Next-token scores<br/>→ sampled / checked tokens"]
+  end
+
+  T --> E --> B
+  B <--> KV
+  B --> H --> Y
+  D -.->|"guesses a block;<br/>body verifies"| B
+```
+
+How to read it:
+
+| Piece | Role |
+|-------|------|
+| **`embed_tokens`** | Front door: IDs → vectors |
+| **W4A16 body** | The big middle: almost all the layers, stored 4-bit |
+| **`lm_head`** | Back door: vectors → “which word next?” |
+| **KV cache** | Remembers this chat so it doesn’t re-read everything; `CTX` changes how it’s stored |
+| **DFlash2** | Side helper that guesses; the body accepts/rejects (Mode A/B = guess length) |
+
 A small helper model (**DFlash2**) guesses the next few words. The 27B model checks that guess in one step. Checking a short block is faster than generating one word at a time with the full model.
 
   1. Download an already 4-bit Qwen (the public W4A16 AutoRound / compressed-tensors build). Most of the 27B body is already small enough for 24 GB.
