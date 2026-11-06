@@ -22,44 +22,26 @@ The gap between the vanilla model and the quantized model is measured by:
 How the pieces fit together:
 
 ```mermaid
-flowchart TB
-  subgraph input["Input"]
-    T["Token IDs<br/>(your prompt)"]
-  end
-
-  subgraph weights["Model weights on GPU"]
-    E["embed_tokens<br/>token → vector<br/>prepared: int8<br/>(was BF16 in public W4A16)"]
-    B["Transformer body<br/>most of the 27B<br/>W4A16 AutoRound<br/>(4-bit weights)"]
-    H["lm_head<br/>vector → vocab scores<br/>prepared: int8<br/>(was BF16 in public W4A16)"]
-  end
-
-  subgraph memory["Runtime memory (not the weight file)"]
-    KV["KV cache<br/>conversation scratch notes<br/>CTX=fast / long / huge"]
-  end
-
-  subgraph speculate["Optional speed path"]
-    D["DFlash2 drafter<br/>small W4A16 guesser<br/>Mode A ~7 / Mode B ~15"]
-  end
-
-  subgraph output["Output"]
-    Y["Next-token scores<br/>→ sampled / checked tokens"]
-  end
-
-  T --> E --> B
-  B <--> KV
-  B --> H --> Y
-  D -.->|"guesses a block;<br/>body verifies"| B
+flowchart LR
+  T[Token IDs] --> E[embed_tokens<br/>int8]
+  E --> B[W4A16 body]
+  B <--> KV[KV cache]
+  B --> H[lm_head<br/>int8]
+  H --> Y[Next token]
+  D[DFlash2] -.->|guess / verify| B
 ```
 
 How to read it:
 
 | Piece | Role |
 |-------|------|
-| **`embed_tokens`** | Front door: IDs → vectors |
-| **W4A16 body** | The big middle: almost all the layers, stored 4-bit |
-| **`lm_head`** | Back door: vectors → “which word next?” |
-| **KV cache** | Remembers this chat so it doesn’t re-read everything; `CTX` changes how it’s stored |
-| **DFlash2** | Side helper that guesses; the body accepts/rejects (Mode A/B = guess length) |
+| **Token IDs** | Your prompt, as numbers |
+| **`embed_tokens`** | Front door: IDs → vectors. Prepared to **int8** (was BF16 in the public W4A16 file) |
+| **W4A16 body** | Almost all of the 27B layers, stored 4-bit (AutoRound) |
+| **`lm_head`** | Back door: vectors → “which word next?” Prepared to **int8** (was BF16) |
+| **KV cache** | Remembers this chat so it doesn’t re-read everything; `CTX=fast` / `long` / `huge` changes how it’s stored |
+| **DFlash2** | Side helper that guesses a short block; the body accepts or rejects (Mode A ~7 / Mode B ~15) |
+| **Next token** | Final scores → the word that gets emitted |
 
 A small helper model (**DFlash2**) guesses the next few words. The 27B model checks that guess in one step. Checking a short block is faster than generating one word at a time with the full model.
 
