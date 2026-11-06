@@ -1,13 +1,40 @@
 # Adventures In AI Coding 5
 ## HyperQwen
 
+Running Qwen3.8-27b on 24GB VRAM.
+
 ## What
 
-HyperQwen is a packaged way to run **Qwen3.8-27B** on one 24 GB GPU.
+“Large Qwen models, served fast on the GPUs people actually own.”
 
-The weights are stored in 4-bit (`W4A16`) so the model fits in that memory. The server is a pinned build of [vLLM](https://github.com/vllm-project/vllm) with HyperQwen’s patches and scripts already applied. You call it with the usual OpenAI-style API. On this machine that is `http://127.0.0.1:18020/v1`, model name `qwen3.8-27b`.
+HyperQwen patches [vLLM](https://github.com/vllm-project/vllm) inference engine with DFlash2 guessing, copying from the prompt, long-context KV tricks, WSL pin-memory fixes and more.
+They then (cook)[https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md] a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
+
+Vanilla Qwen3.8-27b is about 56GB on disk, this W4A16 build is about 22GB.
+W4A16 means weights (small stored recipe) are stored in 4-bit with 16-bit activations(richer live math) values during the forward pass.
+The W4A16 quantization is a lossy compression of the weight numbers
+
+The gap between the vanilla model and the quantized model is measured by:
+  1. Task scores: with (IFBench)[https://github.com/allenai/IFBench], give the model a fixed quiz (math, follow instructions, etc.). Count how many it gets right. Compare full model vs 4-bit.
+  2. (Perplexity)[https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md]: with (quality battery)[https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py] show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = more “yeah, that word makes sense.” If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
+  3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = ~0.6% 
 
 A small helper model (**DFlash2**) guesses the next few words. The 27B model checks that guess in one step. Checking a short block is faster than generating one word at a time with the full model.
+
+  1. Download an already 4-bit Qwen (the public W4A16 AutoRound / compressed-tensors build). Most of the 27B body is already small enough for 24 GB.
+
+  2. That public file still wastes VRAM, so prepare/ rewrites a few leftover full-size pieces once, on the CPU, in place:
+    • lm_head (output layer) → int8 (~1.3 GB saved)
+    • embed_tokens (input embeddings) → int8 (~1.3 GB saved)
+    • mtp.* (built-in draft module, if present) → int8
+
+  3. Build a smaller draft vocabulary — a ~41k-row slice of the output head so a draft model doesn’t score the full ~248k vocab every guess.
+
+  4. Optional downloads for speed:
+    • -fast — further-tweaked head/draft bits (~15% faster in single-user mode)
+    • DFlash2 — the separate small block-guesser HyperQwen uses 
+
+
 
 Two check lengths:
 
