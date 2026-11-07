@@ -10,13 +10,14 @@ Running Qwen3.8-27b on 24GB VRAM.
 [HyperQwen](https://github.com/syv-ai/HyperQwen) patches [vLLM](https://github.com/vllm-project/vllm) inference engine with DFlash2 guessing, copying from the prompt, long-context KV tricks, WSL pin-memory fixes and more.
 They then [cook](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
 
+[Quality](https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md):
 Vanilla Qwen3.8-27b is about 56GB on disk, this W4A16 build is about 22GB.
 W4A16 means weights (small stored recipe) are stored in 4-bit with 16-bit activations(richer live math) values during the forward pass.
 The W4A16 quantization is a lossy compression of the weight numbers
 
 The gap between the vanilla model and the quantized model is measured by:
   1. Task scores: with [IFBench](https://github.com/allenai/IFBench), give the model a fixed quiz (math, follow instructions, etc.). Count how many it gets right. Compare full model vs 4-bit.
-  2. [Perplexity](https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md): with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = more “yeah, that word makes sense.” If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
+  2. Perplexity: with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = more “yeah, that word makes sense.” If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
   3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = ~0.6% 
 
 How the pieces fit together:
