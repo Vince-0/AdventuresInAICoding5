@@ -60,16 +60,16 @@ A small helper model (**DFlash2**) guesses the next few words. The 27B model che
 
 The project title is [**DFlash: Block Diffusion for Flash Speculative Decoding**](https://github.com/z-lab/dflash) — so the **D** is about **block diffusion**, and **Flash** is the “fast speculative decode” part. **DFlash2** / **DFlash 2** is the second generation of that drafter.
 
-DFlash2 is **not** a slice of the 27B weights. It is a separate ~**1.92B**-parameter draft model. The original is BF16 (~**3.85 GB**): [incoai/Qwen3.8-27B-DFlash2](https://huggingface.co/incoai/Qwen3.8-27B-DFlash2). HyperQwen serves a smaller copy (~**1.2 GB**) made with **[GPTQ](https://arxiv.org/abs/2210.17323)** (**G**enerative **P**re-trained **T**ransformer **Q**uantization): a calibration method that squeezes those weights to **W4A16** instead of only rounding each number. That file is [syvai/Qwen3.8-27B-DFlash2-W4A16](https://huggingface.co/syvai/Qwen3.8-27B-DFlash2-W4A16) (`prepare/fetch_dflash2.py`).
+DFlash2 is **not** a slice of the 27B weights. It is a separate **about 1.92B**-parameter draft model. The original is BF16 (**about 3.85 GB**): [incoai/Qwen3.8-27B-DFlash2](https://huggingface.co/incoai/Qwen3.8-27B-DFlash2). HyperQwen serves a smaller copy (**about 1.2 GB**) made with **[GPTQ](https://arxiv.org/abs/2210.17323)** (**G**enerative **P**re-trained **T**ransformer **Q**uantization): a calibration method that squeezes those weights to **W4A16** instead of only rounding each number. That file is [syvai/Qwen3.8-27B-DFlash2-W4A16](https://huggingface.co/syvai/Qwen3.8-27B-DFlash2-W4A16) (`prepare/fetch_dflash2.py`).
 
 **W4A16** here means the same storage idea as the main model (4-bit weights, ~16-bit live math). The **recipe that built the 4-bit numbers** is different:
 
 | | Main Qwen body | DFlash2 drafter |
 |--|----------------|-----------------|
-| **What** | The big 27B | The small ~1.92B guesser |
+| **What** | The big 27B | The small about-1.92B guesser |
 | **Method** | **AutoRound** (shipped as compressed-tensors) | **[GPTQ](https://arxiv.org/abs/2210.17323)** (HyperQwen `drafter/quant_dflash2.py`) |
 | **Idea** | Round with AutoRound’s calibration | Round with GPTQ’s calibration (Hessian / error feedback) |
-| **Result label** | W4A16 | Also W4A16 (~3.85 GB → ~1.2 GB) |
+| **Result label** | W4A16 | Also W4A16 (about 3.85 GB → about 1.2 GB) |
 
 More detail: [drafter/README.md](https://github.com/syv-ai/HyperQwen/blob/main/drafter/README.md).
 
