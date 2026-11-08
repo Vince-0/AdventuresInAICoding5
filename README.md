@@ -7,7 +7,12 @@ Running Qwen3.8-27b on 24GB VRAM.
 
 “Large Qwen models, served fast on the GPUs people actually own.”
 
-[HyperQwen](https://github.com/syv-ai/HyperQwen) patches [vLLM](https://github.com/vllm-project/vllm) inference engine with DFlash2 guessing, copying from the prompt, long-context KV tricks, WSL pin-memory fixes and more.
+[HyperQwen](https://github.com/syv-ai/HyperQwen) patches [vLLM](https://github.com/vllm-project/vllm) inference engine with:
+- DFlash2 guessing
+- Copying from the prompt
+- long-context KV tricks
+- WSL pin-memory fixes and more
+  
 They then [cook](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
 
 [Quality](https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md):
@@ -86,7 +91,7 @@ More detail: [drafter/README.md](https://github.com/syv-ai/HyperQwen/blob/main/d
     • -fast — further-tweaked head/draft bits (~15% faster in single-user mode)
     • DFlash2 — the separate small block-guesser HyperQwen uses 
 
---
+---
 
 Two check lengths:
 
