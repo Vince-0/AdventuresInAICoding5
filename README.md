@@ -16,8 +16,11 @@ Running Qwen3.8-27b on 24GB VRAM.
 - long-context KV tricks: KV = the model’s scratch notes for “what I’ve already read.” Long chats make huge notes. HyperQwen has ways to store those notes smaller (CTX=long /
   huge, int8, KVarN, etc.) so more text fits in 24 GB.
 
-- WSL pin-memory fixes: under Windows Subsystem for Linux, GPU↔CPU memory sharing is picky. Without the right pin-memory / allocator settings, the server can crash or refuse to
-  start. These patches/flags make that path work on WSL.
+- WSL offload device-pointer handling: under WSL, CPU↔GPU “shared” memory pointers don’t behave like real UVA. HyperQwen’s [`offload-wsl2-devptr`](https://github.com/syv-ai/HyperQwen/blob/main/patches/offload-wsl2-devptr.patch) patch fixes how the offload path reads those pointers so it doesn’t trust a broken mapping.
+
+- CUDA-graph / memory accounting quirks (especially painful on WSL): the WSL driver can report free GPU memory as zero or collapse during cold compile, so a stock memory estimate refuses to boot. HyperQwen patches measure graph memory from the allocator instead ([`cudagraph-memory-from-allocator`](https://github.com/syv-ai/HyperQwen/blob/main/patches/cudagraph-memory-from-allocator.patch)) and clear leftover compile scratch before pinning the KV pool ([`pinned-kv-empty-cache`](https://github.com/syv-ai/HyperQwen/blob/main/patches/pinned-kv-empty-cache.patch)).
+
+(The separate `.env` flag `VLLM_WSL2_ENABLE_PIN_MEMORY=1` is a **vLLM** WSL switch, not one of those patches — see the switches table below.)
   
 They then [cook](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
 
