@@ -112,6 +112,30 @@ How much text the server can hold is a separate knob, `CTX`:
 | `long` | 128k–150k tokens | Compressed to 8-bit. |
 | `huge` | 245k tokens | Compressed further (KVarN). This boot is broken on the current driver until the memory pin is retuned. |
 
+**Daily Mode A (what `.env` is set to now):**
+
+| Switch | Value | Meaning |
+|--------|-------|---------|
+| `SPEC` | `dflash2` | Use the DFlash2 block guesser |
+| `DFLASH_TOKENS` | *(unset → ~7)* | Mode A verify length |
+| `PREFIX_CACHE` | `1` | Reuse KV across turns |
+| `CTX` | `fast` | ~64k context (`huge` is parked) |
+| `VLLM_WSL2_ENABLE_PIN_MEMORY` | `1` | WSL pin-memory / UVA |
+| `HOST` / `BIND` | `127.0.0.1` | Local only |
+| `PORT` | `18020` | API port |
+| `GPU_UTIL` | `0.90` | Leave some VRAM headroom |
+| `PYTORCH_CUDA_ALLOC_CONF` | `expandable_segments:False,max_split_size_mb:128` | WSL Marlin boot fix |
+| `FA2_FP8KV` | `0` | Not using that FA2 fp8 KV path |
+
+**Mode flips (not on by default):**
+
+| Goal | Change |
+|------|--------|
+| Mode B (quote/copy) | Add `DFLASH_TOKENS=15`, restart |
+| Longer context | `CTX=long` or `CTX=huge` (`huge` needs KV retune on this box) |
+
+Lookup drafting stays on HyperQwen’s usual DFlash2 default unless you turn `LOOKUP` off for debugging.
+
 **Upstream:** [syv-ai/HyperQwen](https://github.com/syv-ai/HyperQwen) · [WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md) · lab plan: [`05_IMPLEMENTATION.md`](../05_IMPLEMENTATION.md)
 
 **Primer (how LLMs, attention, and KV work):** [AI Theory](https://github.com/Vince-0/AI_Theory)
