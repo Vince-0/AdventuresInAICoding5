@@ -9,9 +9,15 @@ Running Qwen3.8-27b on 24GB VRAM.
 
 [HyperQwen](https://github.com/syv-ai/HyperQwen) patches [vLLM](https://github.com/vllm-project/vllm) inference engine with:
 - DFlash2 guessing
-- Copying from the prompt
-- long-context KV tricks
-- WSL pin-memory fixes and more
+
+- Copying from the prompt: If the answer is mostly text already in what you pasted (quote this, edit that), the server can grab those words from the prompt instead of inventing
+  them. The big model still checks.
+  
+- long-context KV tricks: KV = the model’s scratch notes for “what I’ve already read.” Long chats make huge notes. HyperQwen has ways to store those notes smaller (CTX=long /
+  huge, int8, KVarN, etc.) so more text fits in 24 GB.
+
+- WSL pin-memory fixes: under Windows Subsystem for Linux, GPU↔CPU memory sharing is picky. Without the right pin-memory / allocator settings, the server can crash or refuse to
+  start. These patches/flags make that path work on WSL.
   
 They then [cook](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
 
