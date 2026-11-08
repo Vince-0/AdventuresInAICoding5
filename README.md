@@ -56,6 +56,8 @@ How to read it:
 | **`lm_head` int8** | **~1.2 GB** (was **~2.5 GB** BF16) | Back door: vectors → “which word next?” |
 | **Next token** | — | Final scores → the word that gets emitted |
 
+### DFlash2
+
 A small helper model (**DFlash2**) guesses the next few words. The 27B model checks that guess in one step. Checking a short block is faster than generating one word at a time with the full model.
 
 The project title is [**DFlash: Block Diffusion for Flash Speculative Decoding**](https://github.com/z-lab/dflash) — so the **D** is about **block diffusion**, and **Flash** is the “fast speculative decode” part. **DFlash2** / **DFlash 2** is the second generation of that drafter.
@@ -84,7 +86,7 @@ More detail: [drafter/README.md](https://github.com/syv-ai/HyperQwen/blob/main/d
     • -fast — further-tweaked head/draft bits (~15% faster in single-user mode)
     • DFlash2 — the separate small block-guesser HyperQwen uses 
 
-
+--
 
 Two check lengths:
 
