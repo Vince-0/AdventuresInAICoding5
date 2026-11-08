@@ -8,7 +8,7 @@ Running Qwen3.8-27b on 24GB VRAM.
 “Large Qwen models, served fast on the GPUs people actually own.”
 
 [HyperQwen](https://github.com/syv-ai/HyperQwen) patches [vLLM](https://github.com/vllm-project/vllm) inference engine with:
-- DFlash2 guessing
+- [DFlash2 guessing](#dflash2)
 
 - Copying from the prompt: If the answer is mostly text already in what you pasted (quote this, edit that), the server can grab those words from the prompt instead of inventing
   them. The big model still checks.
