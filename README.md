@@ -100,27 +100,13 @@ How to read it:
 | **`lm_head` int8** | **~1.2 GB** (was **~2.5 GB** BF16) | Back door: vectors → “which word next?” |
 | **Next token** | — | Final scores → the word that gets emitted |
 
-### How the pieces fit
-
-1. **Two things share the GPU.** The weight file and the KV (conversation memory) both use VRAM. A longer chat does not make the weight file bigger. It grows the KV until the card is full.
-
-2. **Guess, then check.** DFlash2 proposes a short phrase. The 27B model marks which tokens are right. When the guesses are often right, the reply finishes in fewer full-model steps.
-
-3. **Mode A and Mode B are the same weights.** Mode A uses a short check, for chat where the next words are new. Mode B uses a longer check and can copy from the prompt, for quote and edit jobs.
-
-4. **Copying from the prompt is cheaper than inventing.** Lookup fills guesses from text already in the prompt. The prefix cache reuses KV for the shared front of the prompt. The first read of a long doc is still slow. The next turn on that same doc is where an agent feels fast.
-
-5. **A long context window only counts if the KV fits.** `long` and `huge` change how KV is stored (8-bit, or KVarN). On this box, 128k and up is a real setting, as long as `huge` can boot.
-
-6. **Three different ways to shrink memory.** W4A16 shrinks the weights. `-fast` repacks a few hot parts. KVarN shrinks the KV. They are separate.
-
 ### DFlash2
 
 A small helper model (**DFlash2**) guesses the next few words. The 27B model checks that guess in one step. Checking a short block is faster than generating one word at a time with the full model.
 
 The project title is [**DFlash: Block Diffusion for Flash Speculative Decoding**](https://github.com/z-lab/dflash) — so the **D** is about **block diffusion**, and **Flash** is the “fast speculative decode” part. **DFlash2** / **DFlash 2** is the second generation of that drafter.
 
-DFlash2 is **not** a slice of the 27B weights. It is a separate **about 1.92B**-parameter draft model. The original is BF16 (**about 3.85 GB**): [incoai/Qwen3.8-27B-DFlash2](https://huggingface.co/incoai/Qwen3.8-27B-DFlash2). HyperQwen serves a smaller copy (**about 1.2 GB**) made with **[GPTQ](https://arxiv.org/abs/2210.17323)** (**G**enerative **P**re-trained **T**ransformer **Q**uantization): a calibration method that squeezes those weights to **W4A16** instead of only rounding each number. That file is [syvai/Qwen3.8-27B-DFlash2-W4A16](https://huggingface.co/syvai/Qwen3.8-27B-DFlash2-W4A16) ([`prepare/fetch_dflash2.py`](https://github.com/syv-ai/HyperQwen/blob/main/prepare/fetch_dflash2.py)).
+DFlash2 is **not** a slice of the 27B weights. It is a separate **about 1.92B**-parameter draft model. The original is BF16 (**about 3.85 GB**): [incoai/Qwen3.8-27B-DFlash2](https://huggingface.co/incoai/Qwen3.8-27B-DFlash2). HyperQwen serves a smaller copy (**about 1.2 GB**) made with GPTQ. That file is [syvai/Qwen3.8-27B-DFlash2-W4A16](https://huggingface.co/syvai/Qwen3.8-27B-DFlash2-W4A16) ([`prepare/fetch_dflash2.py`](https://github.com/syv-ai/HyperQwen/blob/main/prepare/fetch_dflash2.py)).
 
 | | Main Qwen body | DFlash2 drafter |
 |--|----------------|-----------------|
@@ -145,7 +131,21 @@ More detail: [drafter/README.md](https://github.com/syv-ai/HyperQwen/blob/main/d
     • DFlash2 — the separate small block-guesser HyperQwen uses 
 
 ---
+### How the pieces fit
 
+1. **Two things share the GPU.** The weight file and the KV (conversation memory) both use VRAM. A longer chat does not make the weight file bigger. It grows the KV until the card is full.
+
+2. **Guess, then check.** DFlash2 proposes a short phrase. The 27B model marks which tokens are right. When the guesses are often right, the reply finishes in fewer full-model steps.
+
+3. **Mode A and Mode B are the same weights.** Mode A uses a short check, for chat where the next words are new. Mode B uses a longer check and can copy from the prompt, for quote and edit jobs.
+
+4. **Copying from the prompt is cheaper than inventing.** Lookup fills guesses from text already in the prompt. The prefix cache reuses KV for the shared front of the prompt. The first read of a long doc is still slow. The next turn on that same doc is where an agent feels fast.
+
+5. **A long context window only counts if the KV fits.** `long` and `huge` change how KV is stored (8-bit, or KVarN). On this box, 128k and up is a real setting, as long as `huge` can boot.
+
+6. **Three different ways to shrink memory.** W4A16 shrinks the weights. `-fast` repacks a few hot parts. KVarN shrinks the KV. They are separate.
+
+---
 Two check lengths:
 
 - **Mode A** checks about **7** guessed tokens. This is the setting for normal chat and coding.
