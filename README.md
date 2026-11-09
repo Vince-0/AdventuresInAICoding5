@@ -8,7 +8,7 @@ Alibaba's family of open-weight LLM models
 
 New in this write-up, compared with #3 (MTP on small models) and #4 (MoE models bigger than the GPU): block guesses, Mode A/B, copying from the prompt, a prefix cache, and smaller conversation memory so long chats fit.
 
-More background: [AI Theory — key concepts](https://github.com/Vince-0/AI_Theory#key-concepts).
+More background: [AI Theory - key concepts](https://github.com/Vince-0/AI_Theory#key-concepts).
 
 ### Glossary
 
