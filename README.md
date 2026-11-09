@@ -39,6 +39,11 @@ More background: [AI Theory - key concepts](https://github.com/Vince-0/AI_Theory
 
 “Large Qwen models, served fast on the GPUs people actually own.”
 
+**Primer (how LLMs, attention, and KV work):** [AI Theory](https://github.com/Vince-0/AI_Theory)
+
+**This run:** WSL2 Ubuntu, RTX 4090 24 GB, about 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv.
+[HyperQwen's WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md)
+
 [HyperQwen](https://github.com/syv-ai/HyperQwen) patches [vLLM](https://github.com/vllm-project/vllm) inference engine with:
 - [DFlash2 guessing](#dflash2)
 
@@ -131,27 +136,13 @@ More detail: [drafter/README.md](https://github.com/syv-ai/HyperQwen/blob/main/d
     • DFlash2 — the separate small block-guesser HyperQwen uses 
 
 ---
-### How the pieces fit
 
-1. **Two things share the GPU.** The weight file and the KV (conversation memory) both use VRAM. A longer chat does not make the weight file bigger. It grows the KV until the card is full.
-
-2. **Guess, then check.** DFlash2 proposes a short phrase. The 27B model marks which tokens are right. When the guesses are often right, the reply finishes in fewer full-model steps.
-
-3. **Mode A and Mode B are the same weights.** Mode A uses a short check, for chat where the next words are new. Mode B uses a longer check and can copy from the prompt, for quote and edit jobs.
-
-4. **Copying from the prompt is cheaper than inventing.** Lookup fills guesses from text already in the prompt. The prefix cache reuses KV for the shared front of the prompt. The first read of a long doc is still slow. The next turn on that same doc is where an agent feels fast.
-
-5. **A long context window only counts if the KV fits.** `long` and `huge` change how KV is stored (8-bit, or KVarN). On this box, 128k and up is a real setting, as long as `huge` can boot.
-
-6. **Three different ways to shrink memory.** W4A16 shrinks the weights. `-fast` repacks a few hot parts. KVarN shrinks the KV. They are separate.
-
----
-Two check lengths:
+Two use cases and check lengths:
 
 - **Mode A** checks about **7** guessed tokens. This is the setting for normal chat and coding.
 - **Mode B** checks about **15** guessed tokens. It can also copy phrases straight from the prompt. This is the setting for quoting or editing a long document you already pasted in.
 
-How much text the server can hold is a separate knob, `CTX`:
+How much context the server can hold is a separate knob, `CTX`:
 
 | Setting | About how much text | How conversation memory is stored |
 |---------|---------------------|-----------------------------------|
@@ -159,7 +150,7 @@ How much text the server can hold is a separate knob, `CTX`:
 | `long` | 128k–150k tokens | Compressed to 8-bit. |
 | `huge` | 245k tokens | Compressed further (KVarN). This boot is broken on the current driver until the memory pin is retuned. |
 
-**Daily Mode A (what `.env` is set to now):**
+**Mode A - chat and coding :**
 
 | Switch | Value | Meaning |
 |--------|-------|---------|
@@ -174,7 +165,7 @@ How much text the server can hold is a separate knob, `CTX`:
 | `PYTORCH_CUDA_ALLOC_CONF` | `expandable_segments:False,max_split_size_mb:128` | WSL Marlin boot fix |
 | `FA2_FP8KV` | `0` | Not using that FA2 fp8 KV path |
 
-**Mode flips (not on by default):**
+**Mode B - document writing:**
 
 | Goal | Change |
 |------|--------|
@@ -183,11 +174,19 @@ How much text the server can hold is a separate knob, `CTX`:
 
 Lookup drafting stays on HyperQwen’s usual DFlash2 default unless you turn `LOOKUP` off for debugging.
 
-**Upstream:** [syv-ai/HyperQwen](https://github.com/syv-ai/HyperQwen) · [WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md)
+### How the pieces fit
 
-**Primer (how LLMs, attention, and KV work):** [AI Theory](https://github.com/Vince-0/AI_Theory)
+1. **Two things share the GPU.** The weight file and the KV (conversation memory) both use VRAM. A longer chat does not make the weight file bigger. It grows the KV until the card is full.
 
-**This run:** WSL2 Ubuntu, RTX 4090 24 GB, about 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv (Docker is not installed in this WSL). API on port 18020.
+2. **Guess, then check.** DFlash2 proposes a short phrase. The 27B model marks which tokens are right. When the guesses are often right, the reply finishes in fewer full-model steps.
+
+3. **Mode A and Mode B are the same weights.** Mode A uses a short check, for chat where the next words are new. Mode B uses a longer check and can copy from the prompt, for quote and edit jobs.
+
+4. **Copying from the prompt is cheaper than inventing.** Lookup fills guesses from text already in the prompt. The prefix cache reuses KV for the shared front of the prompt. The first read of a long doc is still slow. The next turn on that same doc is where an agent feels fast.
+
+5. **A long context window only counts if the KV fits.** `long` and `huge` change how KV is stored (8-bit, or KVarN). On this box, 128k and up is a real setting, as long as `huge` can boot.
+
+6. **Three different ways to shrink memory.** W4A16 shrinks the weights. `-fast` repacks a few hot parts. KVarN shrinks the KV. They are separate.
 
 ---
 
