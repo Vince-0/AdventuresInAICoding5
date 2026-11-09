@@ -4,9 +4,10 @@
 Running [Qwen3](https://github.com/QwenLM/Qwen3).8-27b on 24GB VRAM.
 Alibaba's family of open-weight LLM models
 
-## Key concepts
+<details>
+<summary><strong>Key concepts</strong></summary>
 
-New in this write-up, compared with #3 (MTP on small models) and #4 (MoE models bigger than the GPU): block guesses, Mode A/B, copying from the prompt, a prefix cache, and smaller conversation memory so long chats fit.
+New in this write-up, compared with [#3](https://github.com/Vince-0/AdventuresInAICoding3) (MTP on small models) and [#4](https://github.com/Vince-0/AdventuresInAICoding4) (MoE models bigger than the GPU): block guesses, Mode A/B, copying from the prompt, a prefix cache, and smaller conversation memory so long chats fit.
 
 More background: [AI Theory - key concepts](https://github.com/Vince-0/AI_Theory#key-concepts).
 
@@ -15,12 +16,12 @@ More background: [AI Theory - key concepts](https://github.com/Vince-0/AI_Theory
 | Term | Meaning | On this run |
 |------|---------|-------------|
 | **VRAM** | Memory on the GPU. The model has to live here to run quickly. | 24 GB. Holds the weights, the small guesser, and conversation memory (KV). |
-| **Dense 27B** | One model that runs every layer for every token. | Qwen3.8-27B. Different from #4, where specialist layers sat in system RAM. |
+| **Dense 27B** | One model that runs every layer for every token. | Qwen3.8-27B. Different from [#4](https://github.com/Vince-0/AdventuresInAICoding4), where specialist layers sat in system RAM. |
 | **W4A16** | Weights stored in 4-bit. Math done in about 16-bit. | How 27B fits on one 4090. |
 | **KV cache** | Memory of what the model has already read in this chat. | Longer chats and bigger pasted docs use more of it, so less VRAM is left. |
 | **Prefill vs decode** | Prefill reads the prompt. Decode writes the reply one token at a time. | A long pasted doc is mostly a prefill cost. Chat speed is mostly decode tok/s. |
 | **Frozen vLLM + HyperQwen** | A known vLLM version, plus patches and scripts that were tested together. | Install, patch, prepare weights, `start_qwen.sh`. |
-| **Speculative decoding** | A small model guesses the next tokens. The big model accepts or rejects them. | #3 used MTP for this. Here the guesser is DFlash2. |
+| **Speculative decoding** | A small model guesses the next tokens. The big model accepts or rejects them. | [#3](https://github.com/Vince-0/AdventuresInAICoding3) used MTP for this. Here the guesser is DFlash2. |
 | **DFlash2** | The guesser proposes a block of tokens. The 27B model checks the block. | `SPEC=dflash2` for both Mode A and Mode B. |
 | **Mode A** | Check about 7 tokens per step. | Daily chat on port 18020. |
 | **Mode B** | Check about 15 tokens per step. Better when the reply copies the prompt. | Quote and edit jobs. Uses more VRAM headroom than Mode A. |
@@ -30,6 +31,8 @@ More background: [AI Theory - key concepts](https://github.com/Vince-0/AI_Theory
 | **Context profiles** | Three ways to store KV, which sets how long a chat can be. | `fast` ~64k, `long` ~128k+, `huge` ~245k. I want at least 128k when `huge` boots again. |
 | **KVarN** | KV stored in fewer bits so a longer chat fits. | `CTX=huge`: about a 245k window in about 4.9 GB of KV, before the driver update. |
 | **Marlin repack** | At startup, rewrite the 4-bit weights into a layout the GPU kernels want. | Can run out of memory on WSL if the allocator setting is wrong. See Issues. |
+
+</details>
 
 ## What
 
