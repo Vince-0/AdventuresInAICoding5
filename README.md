@@ -1,7 +1,35 @@
 # Adventures In AI Coding 5
 ## HyperQwen
 
-Running Qwen3.8-27b on 24GB VRAM.
+Running [Qwen3](https://github.com/QwenLM/Qwen3).8-27b on 24GB VRAM.
+Alibaba's family of open-weight LLM models
+
+## Key concepts
+
+New in this write-up, compared with #3 (MTP on small models) and #4 (MoE models bigger than the GPU): block guesses, Mode A/B, copying from the prompt, a prefix cache, and smaller conversation memory so long chats fit.
+
+More background: [AI Theory — key concepts](https://github.com/Vince-0/AI_Theory#key-concepts).
+
+### Glossary
+
+| Term | Meaning | On this run |
+|------|---------|-------------|
+| **VRAM** | Memory on the GPU. The model has to live here to run quickly. | 24 GB. Holds the weights, the small guesser, and conversation memory (KV). |
+| **Dense 27B** | One model that runs every layer for every token. | Qwen3.8-27B. Different from #4, where specialist layers sat in system RAM. |
+| **W4A16** | Weights stored in 4-bit. Math done in about 16-bit. | How 27B fits on one 4090. |
+| **KV cache** | Memory of what the model has already read in this chat. | Longer chats and bigger pasted docs use more of it, so less VRAM is left. |
+| **Prefill vs decode** | Prefill reads the prompt. Decode writes the reply one token at a time. | A long pasted doc is mostly a prefill cost. Chat speed is mostly decode tok/s. |
+| **Frozen vLLM + HyperQwen** | A known vLLM version, plus patches and scripts that were tested together. | Install, patch, prepare weights, `start_qwen.sh`. |
+| **Speculative decoding** | A small model guesses the next tokens. The big model accepts or rejects them. | #3 used MTP for this. Here the guesser is DFlash2. |
+| **DFlash2** | The guesser proposes a block of tokens. The 27B model checks the block. | `SPEC=dflash2` for both Mode A and Mode B. |
+| **Mode A** | Check about 7 tokens per step. | Daily chat on port 18020. |
+| **Mode B** | Check about 15 tokens per step. Better when the reply copies the prompt. | Quote and edit jobs. Uses more VRAM headroom than Mode A. |
+| **Lookup drafting** | If the reply is mostly text already in the prompt, take those tokens from history. | Why Mode B is fast on copy-the-document jobs. |
+| **Prefix cache** | Keep the KV for a prompt you will send again, so the next turn skips re-reading it. | The first turn on a long doc is slow. The second turn on the same doc is much faster. |
+| **`-fast` weights** | Extra repack of a few hot parts (output head and draft bits). | Used automatically when those files are present. |
+| **Context profiles** | Three ways to store KV, which sets how long a chat can be. | `fast` ~64k, `long` ~128k+, `huge` ~245k. I want at least 128k when `huge` boots again. |
+| **KVarN** | KV stored in fewer bits so a longer chat fits. | `CTX=huge`: about a 245k window in about 4.9 GB of KV, before the driver update. |
+| **Marlin repack** | At startup, rewrite the 4-bit weights into a layout the GPU kernels want. | Can run out of memory on WSL if the allocator setting is wrong. See Issues. |
 
 ## What
 
@@ -19,9 +47,7 @@ Running Qwen3.8-27b on 24GB VRAM.
 - WSL offload device-pointer handling: under WSL, CPU↔GPU “shared” memory pointers don’t behave like real UVA. HyperQwen’s [`offload-wsl2-devptr`](https://github.com/syv-ai/HyperQwen/blob/main/patches/offload-wsl2-devptr.patch) patch fixes how the offload path reads those pointers so it doesn’t trust a broken mapping.
 
 - CUDA-graph / memory accounting quirks (especially painful on WSL): the WSL driver can report free GPU memory as zero or collapse during cold compile, so a stock memory estimate refuses to boot. HyperQwen patches measure graph memory from the allocator instead ([`cudagraph-memory-from-allocator`](https://github.com/syv-ai/HyperQwen/blob/main/patches/cudagraph-memory-from-allocator.patch)) and clear leftover compile scratch before pinning the KV pool ([`pinned-kv-empty-cache`](https://github.com/syv-ai/HyperQwen/blob/main/patches/pinned-kv-empty-cache.patch)).
-
-(The separate `.env` flag `VLLM_WSL2_ENABLE_PIN_MEMORY=1` is a **vLLM** WSL switch, not one of those patches — see the switches table below.)
-  
+ 
 They then [cook](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
 
 [Quality](https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md):
@@ -56,7 +82,7 @@ flowchart TB
   D -.->|guess / verify| B
 ```
 
-Checkpoint on disk is about **22 GB** after prepare (vanilla BF16 was about **56 GB**). Sizes below are approximate stored weight sizes from HyperQwen’s notes; KV is runtime VRAM, not part of that file.
+Size on disk is about **22 GB** (vanilla BF16 was about **56 GB**). Sizes below are approximate stored weight sizes from HyperQwen’s notes; KV is runtime VRAM, not part of that file.
 
 How to read it:
 
@@ -69,6 +95,20 @@ How to read it:
 | **KV cache** | runtime (e.g. `CTX=huge` pin was **~4.9 GB**) | Remembers this chat; `CTX=fast` / `long` / `huge` changes how it’s stored |
 | **`lm_head` int8** | **~1.2 GB** (was **~2.5 GB** BF16) | Back door: vectors → “which word next?” |
 | **Next token** | — | Final scores → the word that gets emitted |
+
+### How the pieces fit
+
+1. **Two things share the GPU.** The weight file and the KV (conversation memory) both use VRAM. A longer chat does not make the weight file bigger. It grows the KV until the card is full.
+
+2. **Guess, then check.** DFlash2 proposes a short phrase. The 27B model marks which tokens are right. When the guesses are often right, the reply finishes in fewer full-model steps.
+
+3. **Mode A and Mode B are the same weights.** Mode A uses a short check, for chat where the next words are new. Mode B uses a longer check and can copy from the prompt, for quote and edit jobs.
+
+4. **Copying from the prompt is cheaper than inventing.** Lookup fills guesses from text already in the prompt. The prefix cache reuses KV for the shared front of the prompt. The first read of a long doc is still slow. The next turn on that same doc is where an agent feels fast.
+
+5. **A long context window only counts if the KV fits.** `long` and `huge` change how KV is stored (8-bit, or KVarN). On this box, 128k and up is a real setting, as long as `huge` can boot.
+
+6. **Three different ways to shrink memory.** W4A16 shrinks the weights. `-fast` repacks a few hot parts. KVarN shrinks the KV. They are separate.
 
 ### DFlash2
 
@@ -139,54 +179,11 @@ How much text the server can hold is a separate knob, `CTX`:
 
 Lookup drafting stays on HyperQwen’s usual DFlash2 default unless you turn `LOOKUP` off for debugging.
 
-**Upstream:** [syv-ai/HyperQwen](https://github.com/syv-ai/HyperQwen) · [WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md) · lab plan: [`05_IMPLEMENTATION.md`](../05_IMPLEMENTATION.md)
+**Upstream:** [syv-ai/HyperQwen](https://github.com/syv-ai/HyperQwen) · [WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md)
 
 **Primer (how LLMs, attention, and KV work):** [AI Theory](https://github.com/Vince-0/AI_Theory)
 
 **This run:** WSL2 Ubuntu, RTX 4090 24 GB, about 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv (Docker is not installed in this WSL). API on port 18020.
-
----
-
-## Key concepts
-
-New in this write-up, compared with #3 (MTP on small models) and #4 (MoE models bigger than the GPU): block guesses, Mode A/B, copying from the prompt, a prefix cache, and smaller conversation memory so long chats fit.
-
-More background: [AI Theory — key concepts](https://github.com/Vince-0/AI_Theory#key-concepts).
-
-### Glossary
-
-| Term | Meaning | On this run |
-|------|---------|-------------|
-| **VRAM** | Memory on the GPU. The model has to live here to run quickly. | 24 GB. Holds the weights, the small guesser, and conversation memory (KV). |
-| **Dense 27B** | One model that runs every layer for every token. | Qwen3.8-27B. Different from #4, where specialist layers sat in system RAM. |
-| **W4A16** | Weights stored in 4-bit. Math done in about 16-bit. | How 27B fits on one 4090. |
-| **KV cache** | Memory of what the model has already read in this chat. | Longer chats and bigger pasted docs use more of it, so less VRAM is left. |
-| **Prefill vs decode** | Prefill reads the prompt. Decode writes the reply one token at a time. | A long pasted doc is mostly a prefill cost. Chat speed is mostly decode tok/s. |
-| **Frozen vLLM + HyperQwen** | A known vLLM version, plus patches and scripts that were tested together. | Install, patch, prepare weights, `start_qwen.sh`. |
-| **Speculative decoding** | A small model guesses the next tokens. The big model accepts or rejects them. | #3 used MTP for this. Here the guesser is DFlash2. |
-| **DFlash2** | The guesser proposes a block of tokens. The 27B model checks the block. | `SPEC=dflash2` for both Mode A and Mode B. |
-| **Mode A** | Check about 7 tokens per step. | Daily chat on port 18020. |
-| **Mode B** | Check about 15 tokens per step. Better when the reply copies the prompt. | Quote and edit jobs. Uses more VRAM headroom than Mode A. |
-| **Lookup drafting** | If the reply is mostly text already in the prompt, take those tokens from history. | Why Mode B is fast on copy-the-document jobs. |
-| **Prefix cache** | Keep the KV for a prompt you will send again, so the next turn skips re-reading it. | The first turn on a long doc is slow. The second turn on the same doc is much faster. |
-| **`-fast` weights** | Extra repack of a few hot parts (output head and draft bits). | Used automatically when those files are present. |
-| **Context profiles** | Three ways to store KV, which sets how long a chat can be. | `fast` ~64k, `long` ~128k+, `huge` ~245k. I want at least 128k when `huge` boots again. |
-| **KVarN** | KV stored in fewer bits so a longer chat fits. | `CTX=huge`: about a 245k window in about 4.9 GB of KV, before the driver update. |
-| **Marlin repack** | At startup, rewrite the 4-bit weights into a layout the GPU kernels want. | Can run out of memory on WSL if the allocator setting is wrong. See Issues. |
-
-### How the pieces fit
-
-1. **Two things share the GPU.** The weight file and the KV (conversation memory) both use VRAM. A longer chat does not make the weight file bigger. It grows the KV until the card is full.
-
-2. **Guess, then check.** DFlash2 proposes a short phrase. The 27B model marks which tokens are right. When the guesses are often right, the reply finishes in fewer full-model steps.
-
-3. **Mode A and Mode B are the same weights.** Mode A uses a short check, for chat where the next words are new. Mode B uses a longer check and can copy from the prompt, for quote and edit jobs.
-
-4. **Copying from the prompt is cheaper than inventing.** Lookup fills guesses from text already in the prompt. The prefix cache reuses KV for the shared front of the prompt. The first read of a long doc is still slow. The next turn on that same doc is where an agent feels fast.
-
-5. **A long context window only counts if the KV fits.** `long` and `huge` change how KV is stored (8-bit, or KVarN). On this box, 128k and up is a real setting, as long as `huge` can boot.
-
-6. **Three different ways to shrink memory.** W4A16 shrinks the weights. `-fast` repacks a few hot parts. KVarN shrinks the KV. They are separate.
 
 ---
 
