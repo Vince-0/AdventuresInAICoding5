@@ -4,6 +4,13 @@
 Running [Qwen3](https://github.com/QwenLM/Qwen3).8-27b on a 24GB GPU.
 Alibaba's family of open-weight LLM models released August 2026.
 
+## What
+
+“Large Qwen models, served fast on the GPUs people actually own.”
+
+**This run:** WSL2 Ubuntu, RTX 4090 **24 GB** card (about **22.8–23.3 GB** usable after Windows/WSLg display takes ~**1.2 GB**), about 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv.
+[HyperQwen's WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md)
+
 <details>
 <summary><strong>Key concepts</strong></summary>
 
@@ -37,14 +44,7 @@ More background: [AI Theory - key concepts](https://github.com/Vince-0/AI_Theory
 
 </details>
 
-## What
-
-“Large Qwen models, served fast on the GPUs people actually own.”
-
 **Primer (how LLMs, attention, and KV work):** [AI Theory](https://github.com/Vince-0/AI_Theory)
-
-**This run:** WSL2 Ubuntu, RTX 4090 **24 GB** card (about **22.8–23.3 GB** usable after Windows/WSLg display takes ~**1.2 GB**), about 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv.
-[HyperQwen's WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md)
 
 [HyperQwen](https://github.com/syv-ai/HyperQwen) patches [vLLM](https://github.com/vllm-project/vllm) inference engine with:
 - [DFlash2 guessing](#dflash2)
@@ -58,7 +58,7 @@ More background: [AI Theory - key concepts](https://github.com/Vince-0/AI_Theory
 
 - CUDA-graph / memory accounting quirks (especially painful on WSL): the WSL driver can report free GPU memory as zero or collapse during cold compile, so a stock memory estimate refuses to boot. HyperQwen patches measure graph memory from the allocator instead ([`cudagraph-memory-from-allocator`](https://github.com/syv-ai/HyperQwen/blob/main/patches/cudagraph-memory-from-allocator.patch)) and clear leftover compile scratch before pinning the KV pool ([`pinned-kv-empty-cache`](https://github.com/syv-ai/HyperQwen/blob/main/patches/pinned-kv-empty-cache.patch)).
  
-They then [cook](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
+They then [optimize](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
 
 [Quality](https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md):
 Vanilla Qwen3.8-27b is about 56GB on disk, this W4A16 build is about 22GB.
