@@ -78,7 +78,9 @@ The difference between the vanilla model and the quantized model is measured by:
   2. Perplexity: with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = less surprised. If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
   3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = ~0.6% 
 
-How the pieces fit together:
+--- 
+
+**How the pieces fit together:**
 
 ```mermaid
 flowchart TB
