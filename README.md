@@ -11,6 +11,8 @@ Alibaba's family of open-weight LLM models released August 2026.
 **This run:** WSL2 Ubuntu, RTX 4090 **24 GB** card minus 1.2GB for Windows, 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv.
 [HyperQwen's WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md)
 
+---
+
 <details>
 <summary><strong>Key concepts</strong></summary>
 
