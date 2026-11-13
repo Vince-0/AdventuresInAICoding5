@@ -16,12 +16,16 @@ Alibaba's family of open-weight LLM models released August 2026.
 ## Why
 
 Cloud AI is someone else’s computer, and credits add up. 
+
 In [#3](https://github.com/Vince-0/AdventuresInAICoding3) I made **small models that already fit** go faster with Multi-Token Prediction. 
+
 In [#4](https://github.com/Vince-0/AdventuresInAICoding4) I ran **Mixture-of-Experts bigger than VRAM** via host-RAM offload.
 
-This round asks a different question: can a **dense, strong open model** (Qwen3.8-27B) run **well on one 24 GB card** under WSL?
+This round asks a different question: what does a **dense, strong open model** (Qwen3.8-27B) look like on 24GB VRAM
 
-Usual local rule: the whole dense model must fit in **VRAM**. Vanilla Qwen 3.8 with BF16 27B does not. A community **W4A16** build almost does. **[HyperQwen](https://github.com/syv-ai/HyperQwen)** is a pinned vLLM + patch + weight recipe that finishes that fit (including a DFlash2 drafter) and documents how to serve it on cards people actually own.
+Usual local rule: the whole dense model must fit in **VRAM**. Vanilla Qwen 3.8 with BF16 27B does not. A community **W4A16** build almost does. 
+
+**[HyperQwen](https://github.com/syv-ai/HyperQwen)** is a pinned vLLM + patch + weight recipe that finishes that fit (including a DFlash2 drafter) and documents how to serve it on cards people actually own.
 
 Success on this box means: “Qwen3.8-27B stays up on a WSL 4090 and is usable for invent-loop and sticky agent work” — not “buy a 48 GB card” and not “assemble the long-context stack from forum posts.”
 
