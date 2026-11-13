@@ -217,15 +217,13 @@ Lookup drafting stays on HyperQwen’s usual DFlash2 default unless you turn `LO
 
 ## Why
 
-People usually ask one question: how many tokens per second? That misses the comparison this write-up cares about. 
-A server that feels snappy on short invent turns can still fail a fat repo `/plan`, and the other way around.
+Cloud AI is someone else’s computer, and credits add up. In [#3](https://github.com/Vince-0/AdventuresInAICoding3) I made **small models that already fit** go faster. In [#4](https://github.com/Vince-0/AdventuresInAICoding4) I ran **MoE bigger than VRAM** via host-RAM offload.
 
-One KV path, one window:
+This round asks a different question: can a **dense, strong open model** (Qwen3.8-27B) run **well on one 24 GB card** under WSL — not as a toy chat demo, but as a local coding/agent server?
 
-- **int8 KV** at **~96k** (`CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9`) — the biggest stable usable context on this WSL box.
-- Two practical jobs on those same weights: **invent-loop (A)** and **sticky (B)** on that **shared ~96k** window.
+Usual local rule: the whole dense model must fit in **VRAM**. Vanilla BF16 27B does not. A community **W4A16** build almost does. **[HyperQwen](https://github.com/syv-ai/HyperQwen)** is a pinned vLLM + patch + weight recipe that finishes that fit (including a DFlash2 drafter) and documents how to serve it on cards people actually own.
 
-This note is what actually stays up under WSL and what I leave running.
+Success on this box means: “Qwen3.8-27B stays up on a WSL 4090 and is usable for invent-loop and sticky agent work” — not “buy a 48 GB card” and not “assemble the long-context stack from forum posts.”
 
 ### Other ways to run a local model
 
@@ -235,7 +233,7 @@ This note is what actually stays up under WSL and what I leave running.
 | llama.cpp GGUF | A quantized dense model in VRAM | Fine for a GGUF that fits. No HyperQwen DFlash2 mode switch. |
 | FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Different limit (RAM and the PCIe bus). Higher quiz score here. Not a dense 27B with these two harness jobs. |
 | A bigger GPU | More VRAM, fewer tricks | Costs more. This experiment is what one 24 GB card can do. |
-| **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 ~96k | Dense 27B, invent-loop + sticky on a **~96k** shared window on this WSL 4090. |
+| **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 ~96k | Dense 27B that **fits this hardware**, with a tested recipe for invent-loop + sticky on one WSL 4090. |
 
 ---
 
@@ -269,7 +267,14 @@ For short quizzes and for agents, turn thinking off (`chat_template_kwargs.enabl
 
 ---
 
-## Measuring
+## Results
+
+People usually ask one question: how many tokens per second? That misses this write-up. A server that feels snappy on short invent turns can still fail a fat repo `/plan`, and the other way around — so scores are tied to **two jobs on one fixed window**, not a single tok/s number.
+
+**What we hold fixed** (biggest stable usable context on this WSL box):
+
+- **int8 KV** at **~96k** — `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9`
+- Same weights for both jobs: **invent-loop (A)** and **sticky (B)** on that **shared ~96k** window (only draft check length changes: ~7 vs ~15)
 
 Three scores. They answer different questions.
 
@@ -282,10 +287,6 @@ Three scores. They answer different questions.
 Logs are under `~/LLM/HyperQwen/bench-results/` — fresh: `rebench_usecase_a_invent_loop_ctx_fast.json`, `c0_usecase_a_invent_loop.json`, `c3_c4_usecase_b_sticky_long.json`. Older: `c1_mode_a_*.jsonl`, `c0_mode_a*.json`, `exp_mode_b_ctx_huge.json`, `rebench_mode_a_ctx_fast_pl450_stock.json`.
 
 `ran_here` means this 4090 under WSL. `cited_other_hw` means a number from upstream docs or another card (including ~381 tok/s on copy-from-prompt jobs, which is not an invent-loop number).
-
----
-
-## Results
 
 ### Use case A and Use case B
 
