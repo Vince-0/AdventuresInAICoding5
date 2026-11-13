@@ -1,7 +1,7 @@
 # Adventures In AI Coding 5
 ## HyperQwen
 
-Running [Qwen3](https://github.com/QwenLM/Qwen3).8-27b on a 24 GB card (~23 GB usable under WSL after Windows display).
+Running [Qwen3](https://github.com/QwenLM/Qwen3).8-27b on a 24GB GPU.
 Alibaba's family of open-weight LLM models released August 2026.
 
 <details>
