@@ -13,6 +13,56 @@ Alibaba's family of open-weight LLM models released August 2026.
 
 ---
 
+## Why
+
+Cloud AI is someone else’s computer, and credits add up. In [#3](https://github.com/Vince-0/AdventuresInAICoding3) I made **small models that already fit** go faster. In [#4](https://github.com/Vince-0/AdventuresInAICoding4) I ran **MoE bigger than VRAM** via host-RAM offload.
+
+This round asks a different question: can a **dense, strong open model** (Qwen3.8-27B) run **well on one 24 GB card** under WSL — not as a toy chat demo, but as a local coding/agent server?
+
+Usual local rule: the whole dense model must fit in **VRAM**. Vanilla BF16 27B does not. A community **W4A16** build almost does. **[HyperQwen](https://github.com/syv-ai/HyperQwen)** is a pinned vLLM + patch + weight recipe that finishes that fit (including a DFlash2 drafter) and documents how to serve it on cards people actually own.
+
+Success on this box means: “Qwen3.8-27B stays up on a WSL 4090 and is usable for invent-loop and sticky agent work” — not “buy a 48 GB card” and not “assemble the long-context stack from forum posts.”
+
+### Other ways to run a local model
+
+| Approach | What it is good at | Where it misses this job |
+|----------|--------------------|--------------------------|
+| Stock vLLM | Serving a model that fits | You build the long-context, DFlash, and requant steps yourself. The invent-loop vs sticky split is not documented. |
+| llama.cpp GGUF | A quantized dense model in VRAM | Fine for a GGUF that fits. No HyperQwen DFlash2 mode switch. |
+| FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Different limit (RAM and the PCIe bus). Higher quiz score here. Not a dense 27B with these two harness jobs. |
+| A bigger GPU | More VRAM, fewer tricks | Costs more. This experiment is what one 24 GB card can do. |
+| **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 ~96k | Dense 27B that **fits this hardware**, with a tested recipe for invent-loop + sticky on one WSL 4090. |
+
+---
+
+## How
+
+Docker is not installed in this WSL, so this is a normal Python venv and HyperQwen’s `docs/install.md`.
+
+1. Clone HyperQwen. `.env` has `SPEC=dflash2`, `PREFIX_CACHE=1`, `VLLM_WSL2_ENABLE_PIN_MEMORY=1`, `HOST=127.0.0.1`, `GPU_UTIL=0.90`.
+2. `pip install vllm==0.32.0` (plus the pinned deps). `bash patches/apply.sh`.
+3. Prepare weights: AutoRound W4A16, then `-fast`, then the DFlash2 drafter (`prepare/` scripts).
+4. WSL / driver 610.x boot fix:  
+   `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False,max_split_size_mb:128`  
+   `expandable_segments:False` alone runs out of memory during Marlin. `:True` dies while KV is starting.
+5. `bash single-user/start_qwen.sh` → `http://127.0.0.1:18020/v1` (name `qwen3.8-27b`).
+6. **Use case A (daily):** leave `DFLASH_TOKENS` unset (~7), **`CTX=long`**, `MAX_LEN=98304`, `KV_MEM=5.2e9` (shared ~96k).
+7. **Use case B (sticky):** same ~96k window; set `DFLASH_TOKENS=15` and restart for quote/edit.
+
+```bash
+cd ~/LLM/HyperQwen
+set -a && source .env && set +a
+# CTX=long   # int8 KV — daily ~96k with MAX_LEN / KV_MEM below
+# CTX=fast   # older ~64k invent-loop; retired as daily
+export PATH="$PWD/venv/bin:$PATH"
+bash single-user/start_qwen.sh
+curl -s -H "Authorization: Bearer $VLLM_API_KEY" http://127.0.0.1:18020/health
+```
+
+VRAM holds weights, the drafter, and KV — on top of the ~**1.2 GB** Windows/WSLg already took. Leave the shipped `KV_MEM` alone on stock Use case A `-fast` unless you have measured a reason to change it. For Use case B on this WSL box, lower it so prefill still fits in the remaining ~**23 GB**. System RAM here is for the OS and for preparing weights. It is not an expert pool.
+
+For short quizzes and for agents, turn thinking off (`chat_template_kwargs.enable_thinking=false`). If thinking is on, the reply budget fills with reasoning and `content` comes back empty.
+
 <details>
 <summary><strong>Key concepts</strong></summary>
 
@@ -212,58 +262,6 @@ Lookup drafting stays on HyperQwen’s usual DFlash2 default unless you turn `LO
 5. **Prefill is the cliff.** Reading a fat prompt builds KV and needs spare VRAM; that is where WSL/DWM dies, not “decode tok/s.” Daily stays **int8 ~96k** (`KV_MEM=5.2e9`).
 
 6. **Two ways this recipe shrinks memory.** W4A16 shrinks the weights. `-fast` repacks a few hot parts. The KV path here is plain **int8** at ~96k — keep headroom for prefill.
-
----
-
-## Why
-
-Cloud AI is someone else’s computer, and credits add up. In [#3](https://github.com/Vince-0/AdventuresInAICoding3) I made **small models that already fit** go faster. In [#4](https://github.com/Vince-0/AdventuresInAICoding4) I ran **MoE bigger than VRAM** via host-RAM offload.
-
-This round asks a different question: can a **dense, strong open model** (Qwen3.8-27B) run **well on one 24 GB card** under WSL — not as a toy chat demo, but as a local coding/agent server?
-
-Usual local rule: the whole dense model must fit in **VRAM**. Vanilla BF16 27B does not. A community **W4A16** build almost does. **[HyperQwen](https://github.com/syv-ai/HyperQwen)** is a pinned vLLM + patch + weight recipe that finishes that fit (including a DFlash2 drafter) and documents how to serve it on cards people actually own.
-
-Success on this box means: “Qwen3.8-27B stays up on a WSL 4090 and is usable for invent-loop and sticky agent work” — not “buy a 48 GB card” and not “assemble the long-context stack from forum posts.”
-
-### Other ways to run a local model
-
-| Approach | What it is good at | Where it misses this job |
-|----------|--------------------|--------------------------|
-| Stock vLLM | Serving a model that fits | You build the long-context, DFlash, and requant steps yourself. The invent-loop vs sticky split is not documented. |
-| llama.cpp GGUF | A quantized dense model in VRAM | Fine for a GGUF that fits. No HyperQwen DFlash2 mode switch. |
-| FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Different limit (RAM and the PCIe bus). Higher quiz score here. Not a dense 27B with these two harness jobs. |
-| A bigger GPU | More VRAM, fewer tricks | Costs more. This experiment is what one 24 GB card can do. |
-| **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 ~96k | Dense 27B that **fits this hardware**, with a tested recipe for invent-loop + sticky on one WSL 4090. |
-
----
-
-## How
-
-Docker is not installed in this WSL, so this is a normal Python venv and HyperQwen’s `docs/install.md`.
-
-1. Clone HyperQwen. `.env` has `SPEC=dflash2`, `PREFIX_CACHE=1`, `VLLM_WSL2_ENABLE_PIN_MEMORY=1`, `HOST=127.0.0.1`, `GPU_UTIL=0.90`.
-2. `pip install vllm==0.32.0` (plus the pinned deps). `bash patches/apply.sh`.
-3. Prepare weights: AutoRound W4A16, then `-fast`, then the DFlash2 drafter (`prepare/` scripts).
-4. WSL / driver 610.x boot fix:  
-   `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False,max_split_size_mb:128`  
-   `expandable_segments:False` alone runs out of memory during Marlin. `:True` dies while KV is starting.
-5. `bash single-user/start_qwen.sh` → `http://127.0.0.1:18020/v1` (name `qwen3.8-27b`).
-6. **Use case A (daily):** leave `DFLASH_TOKENS` unset (~7), **`CTX=long`**, `MAX_LEN=98304`, `KV_MEM=5.2e9` (shared ~96k).
-7. **Use case B (sticky):** same ~96k window; set `DFLASH_TOKENS=15` and restart for quote/edit.
-
-```bash
-cd ~/LLM/HyperQwen
-set -a && source .env && set +a
-# CTX=long   # int8 KV — daily ~96k with MAX_LEN / KV_MEM below
-# CTX=fast   # older ~64k invent-loop; retired as daily
-export PATH="$PWD/venv/bin:$PATH"
-bash single-user/start_qwen.sh
-curl -s -H "Authorization: Bearer $VLLM_API_KEY" http://127.0.0.1:18020/health
-```
-
-VRAM holds weights, the drafter, and KV — on top of the ~**1.2 GB** Windows/WSLg already took. Leave the shipped `KV_MEM` alone on stock Use case A `-fast` unless you have measured a reason to change it. For Use case B on this WSL box, lower it so prefill still fits in the remaining ~**23 GB**. System RAM here is for the OS and for preparing weights. It is not an expert pool.
-
-For short quizzes and for agents, turn thinking off (`chat_template_kwargs.enable_thinking=false`). If thinking is on, the reply budget fills with reasoning and `content` comes back empty.
 
 ---
 
