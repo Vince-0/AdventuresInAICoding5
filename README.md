@@ -8,15 +8,23 @@ Alibaba's family of open-weight LLM models released August 2026.
 
 “Large Qwen models, served fast on the GPUs people actually own.”
 
-**This run:** WSL2 Ubuntu, RTX 4090 **24 GB** card (about **22.8–23.3 GB** usable after Windows/WSLg display takes ~**1.2 GB**), about 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv.
+**This run:** WSL2 Ubuntu, RTX 4090 **24 GB** card minus 1.2GB for Windows, 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv.
 [HyperQwen's WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md)
 
 <details>
 <summary><strong>Key concepts</strong></summary>
 
-New in this write-up, compared with [#3](https://github.com/Vince-0/AdventuresInAICoding3) (MTP on small models) and [#4](https://github.com/Vince-0/AdventuresInAICoding4) (MoE models bigger than the GPU): block guesses, two HyperQwen harness jobs (invent-loop vs sticky) on a shared ~96k window, copying from the prompt, a prefix cache, and smaller conversation memory so long chats fit. Cross-adventure **lab profiles A/B/C** (including personal auto-agent + host-RAM table) and the **context ladder** protocol (`CTX` × `KV_MEM` × `MAX_LEN` × draft × graphs) live in [`03_ROADMAP.md`](../03_ROADMAP.md#lab-profiles--use-case-vs-implementation).
+Compared with [#3](https://github.com/Vince-0/AdventuresInAICoding3) (MTP on small models) and [#4](https://github.com/Vince-0/AdventuresInAICoding4) (MoE models bigger than the GPU).
+**Primer (how LLMs, attention, and KV work):** [AI Theory](https://github.com/Vince-0/AI_Theory)
 
-More background: [AI Theory - key concepts](https://github.com/Vince-0/AI_Theory#key-concepts).
+New in this write-up:
+- Block guesses
+- Two HyperQwen harness jobs (invent-loop vs sticky) on a shared ~96k window
+- Copying from the prompt
+- Prefix cache
+- Smaller conversation memory so long chats fit. 
+
+Cross-adventure **lab profiles A/B/C** (including personal auto-agent + host-RAM table) and the **context ladder** protocol (`CTX` × `KV_MEM` × `MAX_LEN` × draft × graphs) 
 
 ### Glossary
 
@@ -44,7 +52,7 @@ More background: [AI Theory - key concepts](https://github.com/Vince-0/AI_Theory
 
 </details>
 
-**Primer (how LLMs, attention, and KV work):** [AI Theory](https://github.com/Vince-0/AI_Theory)
+
 
 [HyperQwen](https://github.com/syv-ai/HyperQwen) patches [vLLM](https://github.com/vllm-project/vllm) inference engine with:
 - [DFlash2 guessing](#dflash2)
@@ -58,16 +66,16 @@ More background: [AI Theory - key concepts](https://github.com/Vince-0/AI_Theory
 
 - CUDA-graph / memory accounting quirks (especially painful on WSL): the WSL driver can report free GPU memory as zero or collapse during cold compile, so a stock memory estimate refuses to boot. HyperQwen patches measure graph memory from the allocator instead ([`cudagraph-memory-from-allocator`](https://github.com/syv-ai/HyperQwen/blob/main/patches/cudagraph-memory-from-allocator.patch)) and clear leftover compile scratch before pinning the KV pool ([`pinned-kv-empty-cache`](https://github.com/syv-ai/HyperQwen/blob/main/patches/pinned-kv-empty-cache.patch)).
  
-They then [optimize](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
+They then [optimize](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen3.8 model that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
 
 [Quality](https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md):
 Vanilla Qwen3.8-27b is about 56GB on disk, this W4A16 build is about 22GB.
 W4A16 means weights (small stored recipe) are stored in 4-bit with 16-bit activations(richer live math) values during the forward pass.
 The W4A16 quantization is a lossy compression of the weight numbers
 
-The gap between the vanilla model and the quantized model is measured by:
+The difference between the vanilla model and the quantized model is measured by:
   1. Task scores: with [IFBench](https://github.com/allenai/IFBench), give the model a fixed quiz (math, follow instructions, etc.). Count how many it gets right. Compare full model vs 4-bit.
-  2. Perplexity: with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = more “yeah, that word makes sense.” If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
+  2. Perplexity: with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = less surprised. If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
   3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = ~0.6% 
 
 How the pieces fit together:
