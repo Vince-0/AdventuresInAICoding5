@@ -2,7 +2,7 @@
 ## HyperQwen
 
 Running [Qwen3](https://github.com/QwenLM/Qwen3).8-27b on a 24 GB card (~23 GB usable under WSL after Windows display).
-Alibaba's family of open-weight LLM models
+Alibaba's family of open-weight LLM models released August 2026.
 
 <details>
 <summary><strong>Key concepts</strong></summary>
