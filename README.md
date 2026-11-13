@@ -50,11 +50,13 @@ Cross-adventure **lab profiles A/B/C** (including personal auto-agent + host-RAM
 | **KVarN** | KV stored in fewer bits (~4/2-bit) so more tokens fit in the **same** KV pin. | **H2H @ `KV_MEM=4.2e9`:** boots **~172k** vs int8 **~92k** (~1.9×); cold sticky **~98k** PASS where int8 can’t allocate 96k. Slower prefill at matched depth. **Daily** still int8 @ **5.2e9 / ~96k** (larger pin, faster). ≥120k risked **DWM**. |
 | **Marlin repack** | At startup, rewrite the 4-bit weights into a layout the GPU kernels want. | Can run out of memory on WSL if the allocator setting is wrong. See Issues. |
 
+---
+
 </details>
 
 
 
-[HyperQwen](https://github.com/syv-ai/HyperQwen) patches [vLLM](https://github.com/vllm-project/vllm) inference engine with:
+**[HyperQwen](https://github.com/syv-ai/HyperQwen)** patches [vLLM](https://github.com/vllm-project/vllm) inference engine with:
 - [DFlash2 guessing](#dflash2)
 
 - Copying from the prompt: If the answer is mostly text already in what you pasted (quote this, edit that), the server can grab those words from the prompt instead of inventing
@@ -115,6 +117,8 @@ How to read it:
 | **KV cache** | runtime (e.g. `CTX=huge` pin was **~4.9 GB**) | Remembers this chat; `CTX=fast` / `long` / `huge` changes how it’s stored |
 | **`lm_head` int8** | **~1.2 GB** (was **~2.5 GB** BF16) | Back door: vectors → “which word next?” |
 | **Next token** | — | Final scores → the word that gets emitted |
+
+---
 
 ### DFlash2
 
@@ -198,6 +202,8 @@ How much context the server can hold is the `CTX` knob. **Allocated ≠ usable**
 
 Lookup drafting stays on HyperQwen’s usual DFlash2 default unless you turn `LOOKUP` off for debugging.
 
+---
+
 ### How the pieces fit
 
 1. **More than two things share the GPU.** Under WSL, Windows/WSLg display already uses about **1.2 GB**. The rest is for weights, the drafter, KV, and short-lived prefill scratch. Budget against ~**23 GB** usable, not the sticker **24 GB**. A longer chat does not make the weight file bigger; it grows the KV until that usable pool is full.
@@ -216,13 +222,13 @@ Lookup drafting stays on HyperQwen’s usual DFlash2 default unless you turn `LO
 
 ## Why
 
-People usually ask one question: how many tokens per second? That misses the split this note cares about. A server that feels snappy on short invent turns can still fail a fat repo `/plan`, and the other way around.
+People usually ask one question: how many tokens per second? That misses the comparison this write-up cares about. 
+A server that feels snappy on short invent turns can still fail a fat repo `/plan`, and the other way around.
 
-On a 24 GB card, HyperQwen does three things:
+Two Key Value cache types:
 
-1. Ship one vLLM version and a patch set so Qwen3.8-27B is something you can install, not something you assemble from forum posts.
-2. Run two practical jobs on the same weights: **invent-loop (A)** and **sticky (B)** on a **shared ~96k** window.
-3. Fair **int8 vs KVarN** at the same pin (H2H): denser KV **does** fit more; daily driver still prefers int8 @ a larger pin for speed/stability.
+- Fair **int8 vs KVarN** at the same 96K context size: denser KV int8 **does** fit more;
+- Run two practical jobs on the same weights: **invent-loop (A)** and **sticky (B)** on a **shared ~96k** window.
 
 This note is what actually booted under WSL, the H2H fit-vs-speed tradeoff, and what I leave running (**`CTX=long` ~96k**).
 
