@@ -15,11 +15,13 @@ Alibaba's family of open-weight LLM models released August 2026.
 
 ## Why
 
-Cloud AI is someone else’s computer, and credits add up. In [#3](https://github.com/Vince-0/AdventuresInAICoding3) I made **small models that already fit** go faster. In [#4](https://github.com/Vince-0/AdventuresInAICoding4) I ran **MoE bigger than VRAM** via host-RAM offload.
+Cloud AI is someone else’s computer, and credits add up. 
+In [#3](https://github.com/Vince-0/AdventuresInAICoding3) I made **small models that already fit** go faster with Multi-Token Prediction. 
+In [#4](https://github.com/Vince-0/AdventuresInAICoding4) I ran **Mixture-of-Experts bigger than VRAM** via host-RAM offload.
 
-This round asks a different question: can a **dense, strong open model** (Qwen3.8-27B) run **well on one 24 GB card** under WSL — not as a toy chat demo, but as a local coding/agent server?
+This round asks a different question: can a **dense, strong open model** (Qwen3.8-27B) run **well on one 24 GB card** under WSL?
 
-Usual local rule: the whole dense model must fit in **VRAM**. Vanilla BF16 27B does not. A community **W4A16** build almost does. **[HyperQwen](https://github.com/syv-ai/HyperQwen)** is a pinned vLLM + patch + weight recipe that finishes that fit (including a DFlash2 drafter) and documents how to serve it on cards people actually own.
+Usual local rule: the whole dense model must fit in **VRAM**. Vanilla Qwen 3.8 with BF16 27B does not. A community **W4A16** build almost does. **[HyperQwen](https://github.com/syv-ai/HyperQwen)** is a pinned vLLM + patch + weight recipe that finishes that fit (including a DFlash2 drafter) and documents how to serve it on cards people actually own.
 
 Success on this box means: “Qwen3.8-27B stays up on a WSL 4090 and is usable for invent-loop and sticky agent work” — not “buy a 48 GB card” and not “assemble the long-context stack from forum posts.”
 
@@ -36,6 +38,30 @@ Success on this box means: “Qwen3.8-27B stays up on a WSL 4090 and is usable f
 ---
 
 ## How
+
+**[HyperQwen](https://github.com/syv-ai/HyperQwen)** patches [vLLM](https://github.com/vllm-project/vllm) inference engine with:
+- [DFlash2 guessing](#dflash2)
+
+- Copying from the prompt: If the answer is mostly text already in what you pasted (quote this, edit that), the server can grab those words from the prompt instead of inventing
+  them. The big model still checks.
+  
+- long-context KV: KV = notes for “what I’ve already read.” This lab uses **int8 KV** at **~96k**; fat **prefill** is what breaks WSL/DWM if you push past that.
+
+- WSL offload device-pointer handling: under WSL, CPU↔GPU “shared” memory pointers don’t behave like real UVA. HyperQwen’s [`offload-wsl2-devptr`](https://github.com/syv-ai/HyperQwen/blob/main/patches/offload-wsl2-devptr.patch) patch fixes how the offload path reads those pointers so it doesn’t trust a broken mapping.
+
+- CUDA-graph / memory accounting quirks (especially painful on WSL): the WSL driver can report free GPU memory as zero or collapse during cold compile, so a stock memory estimate refuses to boot. HyperQwen patches measure graph memory from the allocator instead ([`cudagraph-memory-from-allocator`](https://github.com/syv-ai/HyperQwen/blob/main/patches/cudagraph-memory-from-allocator.patch)) and clear leftover compile scratch before pinning the KV pool ([`pinned-kv-empty-cache`](https://github.com/syv-ai/HyperQwen/blob/main/patches/pinned-kv-empty-cache.patch)).
+ 
+They then [optimize](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen3.8 model that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
+
+[Quality](https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md):
+Vanilla Qwen3.8-27b is about 56GB on disk, this W4A16 build is about 22GB.
+W4A16 means weights (small stored recipe) are stored in 4-bit with 16-bit activations(richer live math) values during the forward pass.
+The W4A16 quantization is a lossy compression of the weight numbers
+
+The difference between the vanilla model and the quantized model is measured by:
+  1. Task scores: with [IFBench](https://github.com/allenai/IFBench), give the model a fixed quiz (math, follow instructions, etc.). Count how many it gets right. Compare full model vs 4-bit.
+  2. Perplexity: with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = less surprised. If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
+  3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = ~0.6% 
 
 Docker is not installed in this WSL, so this is a normal Python venv and HyperQwen’s `docs/install.md`.
 
@@ -107,29 +133,7 @@ Cross-adventure **lab profiles A/B/C** (including personal auto-agent + host-RAM
 
 
 
-**[HyperQwen](https://github.com/syv-ai/HyperQwen)** patches [vLLM](https://github.com/vllm-project/vllm) inference engine with:
-- [DFlash2 guessing](#dflash2)
 
-- Copying from the prompt: If the answer is mostly text already in what you pasted (quote this, edit that), the server can grab those words from the prompt instead of inventing
-  them. The big model still checks.
-  
-- long-context KV: KV = notes for “what I’ve already read.” This lab uses **int8 KV** at **~96k**; fat **prefill** is what breaks WSL/DWM if you push past that.
-
-- WSL offload device-pointer handling: under WSL, CPU↔GPU “shared” memory pointers don’t behave like real UVA. HyperQwen’s [`offload-wsl2-devptr`](https://github.com/syv-ai/HyperQwen/blob/main/patches/offload-wsl2-devptr.patch) patch fixes how the offload path reads those pointers so it doesn’t trust a broken mapping.
-
-- CUDA-graph / memory accounting quirks (especially painful on WSL): the WSL driver can report free GPU memory as zero or collapse during cold compile, so a stock memory estimate refuses to boot. HyperQwen patches measure graph memory from the allocator instead ([`cudagraph-memory-from-allocator`](https://github.com/syv-ai/HyperQwen/blob/main/patches/cudagraph-memory-from-allocator.patch)) and clear leftover compile scratch before pinning the KV pool ([`pinned-kv-empty-cache`](https://github.com/syv-ai/HyperQwen/blob/main/patches/pinned-kv-empty-cache.patch)).
- 
-They then [optimize](https://github.com/syv-ai/HyperQwen/blob/main/docs/optimizations.md) a stock 4-bit Qwen3.8 model that almost fits, shrink the parts that still don’t, and add the small helper models the patched server expects. 
-
-[Quality](https://github.com/syv-ai/HyperQwen/blob/main/docs/quality.md):
-Vanilla Qwen3.8-27b is about 56GB on disk, this W4A16 build is about 22GB.
-W4A16 means weights (small stored recipe) are stored in 4-bit with 16-bit activations(richer live math) values during the forward pass.
-The W4A16 quantization is a lossy compression of the weight numbers
-
-The difference between the vanilla model and the quantized model is measured by:
-  1. Task scores: with [IFBench](https://github.com/allenai/IFBench), give the model a fixed quiz (math, follow instructions, etc.). Count how many it gets right. Compare full model vs 4-bit.
-  2. Perplexity: with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = less surprised. If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
-  3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = ~0.6% 
 
 --- 
 
