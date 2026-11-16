@@ -6,7 +6,13 @@ Alibaba's family of open-weight LLM models released August 2026.
 
 ## What
 
-“Large Qwen models, served fast on the GPUs people actually own.”
+**[HyperQwen](https://github.com/syv-ai/HyperQwen)** is “Large Qwen models, served fast on the GPUs people actually own.”
+
+Qwen3.8-27B is a comparable open coding model on the public boards
+
+![SWE-bench Pro](https://github.com/Vince-0/AdventuresInAICoding5/blob/dcc42bb37b9ad51260b33dcb026570a64b02f6e1/pics/SWE-bench-Pro-qwen-3-8-27b2.jpg)
+
+The chart shows how the full Qwen3.8-27B stacks up on a hard coding test against famous AIs. We’re running a compressed copy of that same 27B so it fits on a normal gaming GPU with about a one-point IFBench drop vs the full card and no Pro/DeepSWE score of its own yet.
 
 **This run:** WSL2 Ubuntu, RTX 4090 **24 GB** card minus 1.2GB for Windows, 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv.
 [HyperQwen's WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md)
@@ -25,7 +31,7 @@ This round asks a different question: what does a **dense, strong open model** (
 
 Usual local rule: the whole dense model must fit in **VRAM**. Vanilla Qwen 3.8 with BF16 27B does not. A community **W4A16** build almost does. 
 
-**[HyperQwen](https://github.com/syv-ai/HyperQwen)** is a pinned vLLM + patch + weight recipe that finishes that fit (including a DFlash2 drafter) and documents how to serve it on cards people actually own.
+HyperQwen is a pinned vLLM + patch + weight recipe that finishes that fit (including a DFlash2 drafter) and documents how to serve it on cards people actually own.
 
 Success on this box means: “Qwen3.8-27B stays up on a WSL 4090 and is usable for invent-loop and sticky agent work” — not “buy a 48 GB card” and not “assemble the long-context stack from forum posts.”
 
