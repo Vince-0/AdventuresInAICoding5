@@ -32,7 +32,7 @@ In [Adventure #4](https://github.com/Vince-0/AdventuresInAICoding4) I ran **Mixt
 
 This round asks a different question: what does a **dense, strong open model** (Qwen3.8-27B) look like on 24GB VRAM
 
-Usual local rule: the whole dense model must fit in **VRAM**. Vanilla Qwen 3.8 with BF16 27B does not. A community **W4A16** build almost does. 
+Vanilla Qwen 3.8 BF16 27B full wieghts (56GB) does not fit in 24GB VRAM. A community **W4A16** quantization (22GB) + KV cache + context almost does. 
 
 HyperQwen is a pinned [vLLM](https://vllm.ai/) server engine patch + weight recipe that finishes that fit (**including a DFlash2 drafter model**) and documents how to serve it on cards people actually own.
 
