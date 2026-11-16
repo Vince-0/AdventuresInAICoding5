@@ -26,9 +26,9 @@ I tried it on WSL2 Ubuntu, RTX 4090 **24 GB VRAM** card minus 1.2GB for Windows,
 
 The cloud is someone else’s computer.
 
-In [#3](https://github.com/Vince-0/AdventuresInAICoding3) I made **small models that already fit** go faster with Multi-Token Prediction. 
+In [Adventure #3](https://github.com/Vince-0/AdventuresInAICoding3) I made **small models that already fit** go faster with Multi-Token Prediction. 
 
-In [#4](https://github.com/Vince-0/AdventuresInAICoding4) I ran **Mixture-of-Experts bigger than VRAM** via host-RAM offload.
+In [Adventure #4](https://github.com/Vince-0/AdventuresInAICoding4) I ran **Mixture-of-Experts bigger than VRAM** via host-RAM offload.
 
 This round asks a different question: what does a **dense, strong open model** (Qwen3.8-27B) look like on 24GB VRAM
 
@@ -44,7 +44,7 @@ HyperQwen is a pinned [vLLM](https://vllm.ai/) server engine patch + weight reci
 | llama.cpp GGUF | A quantized dense model in VRAM | Fine for a GGUF that fits. No HyperQwen DFlash2 mode switch. |
 | FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Throughput limited by RAM and PCIe bus.|
 | A bigger GPU | More VRAM, fewer tricks | Costs more. This experiment is what one 24 GB card can do. |
-| **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 96k context | Dense 27B that **fits this hardware**|
+| **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 KV, 96k context | Dense 27B that **fits this hardware**|
 
 ---
 
