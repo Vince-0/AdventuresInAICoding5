@@ -216,6 +216,20 @@ More detail: [drafter/README.md](https://github.com/syv-ai/HyperQwen/blob/main/d
     • -fast — further-tweaked head/draft bits (~15% faster in single-user mode)
     • DFlash2 — the separate small block-guesser HyperQwen uses 
 
+#### DFlash2 vs MTP
+
+Same idea (guess → big model checks), different guesser.
+
+| | **MTP** | **DFlash2** |
+|---|---------|-------------|
+| **What guesses** | Small **heads baked into** Qwen3.8 (`nextn`) | **Separate** ~1.9B draft model |
+| **How it guesses** | Predicts the next few tokens from those heads | **Block** draft (diffusion-style); proposes a short phrase |
+| **Extra files** | Often already in the checkpoint / GGUF | Extra ~1.2 GB W4A16 drafter on GPU |
+| **Typical home** | llama.cpp `draft-mtp`; HyperQwen `SPEC=mtp` | HyperQwen `SPEC=dflash2` (this adventure’s daily) |
+| **On this box** | ~101 tok/s (HyperQwen MTP) / ~70–85 (llama.cpp cite) | ~134–147 tok/s invent/sticky @ 96k |
+
+**ELI5:** MTP = the model’s **built-in mini-crystal-ball**. DFlash2 = a **sidekick model** that blurts a whole short guess for the big model to mark right/wrong. Both save full-model steps when guesses land; DFlash2 is what HyperQwen tuned for the invent/sticky split here.
+
 ---
 
 ### Two practical use cases (lab A/B; see also C)
