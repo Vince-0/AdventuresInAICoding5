@@ -485,3 +485,23 @@ OpenCode/OmO invent-loop is a measured path (the web Tetris run on Use case A). 
 Checklist and logs: [`05_IMPLEMENTATION.md`](../05_IMPLEMENTATION.md). Artifacts under `~/LLM/HyperQwen/bench-results/`.
 
 Do not commit `.env`, weights, or API keys.
+
+---
+
+## Why llama.cpp MTP next (not a decode chase)
+
+Pulled plan: [`06_IMPLEMENTATION.md`](../06_IMPLEMENTATION.md) (Qwen3.8-27B GGUF + built-in MTP vs this HyperQwen daily).
+
+**No — it wasn’t decode tok/s.**
+
+HyperQwen already wins that fight on this box: invent ~**134** / sticky ~**147** tok/s @ ~96k with DFlash2. Community llama.cpp MTP on a 4090 is more like ~**70–85**. HyperQwen’s own `SPEC=mtp` was **slower** (~101 tok/s), so DFlash2 stayed the daily guesser for speed.
+
+**Why MTP / llama.cpp anyway:** a **context wall**, not a speed wall.
+
+| | HyperQwen (this adventure) | llama.cpp MTP (`06`) |
+|---|---|---|
+| Bottleneck found | Usable sticky **~96k** under WSL; denser KVarN didn’t buy a safe bigger window | Claim: **q4_0 KV** + lighter **Q4_K_M** (~16–17 GB) → try **>96k** |
+| Decode | Already good | Expected **worse** — not the goal |
+| Question | “Can dense 27B run well here?” → **yes @ 96k** | “Can this box hold a **bigger** window than HyperQwen’s ceiling?” |
+
+**ELI5:** HyperQwen gave a strong **daily** 27B server. llama.cpp MTP is to see if a **smaller weight file + denser chat memory** can go **past ~96k** — a context experiment, not a quest for more tok/s.
