@@ -11,13 +11,13 @@ Alibaba's family of open-weight LLM models released August 2026.
 
 Qwen3.8-27B is a [comparable](https://www.reddit.com/r/LocalLLM/comments/1voam4p/qwen_38_27b_benchmarks_combined_from_model_cards/) top tier open coding model.
 
+Full Qwen3.8-27B stacks up on a hard coding test against famous AIs. 
+
 ![SWE-bench Pro](https://github.com/Vince-0/AdventuresInAICoding5/blob/dcc42bb37b9ad51260b33dcb026570a64b02f6e1/pics/SWE-bench-Pro-qwen-3-8-27b2.jpg)
 
-The chart shows how the full Qwen3.8-27B stacks up on a hard coding test against famous AIs. 
+HyperQwen's W4A16 (4 weights stored ,16bit activations for live math) quantization is a compressed copy of that same 27B model so it fits on a gaming GPU with about a one-point IFBench drop.
 
-HyperQwen's W4A16 (4 weights stored ,16bit activations for live math) quantization is a compressed copy of that same 27B model so it fits on a gaming GPU with about a one-point IFBench drop vs the full card and no Pro/DeepSWE score of its own yet.
-
-**This run:** WSL2 Ubuntu, RTX 4090 **24 GB VRAM** card minus 1.2GB for Windows, 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv.
+I tried it on WSL2 Ubuntu, RTX 4090 **24 GB VRAM** card minus 1.2GB for Windows, 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv.
 [HyperQwen's WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md)
 
 ---
@@ -34,17 +34,17 @@ This round asks a different question: what does a **dense, strong open model** (
 
 Usual local rule: the whole dense model must fit in **VRAM**. Vanilla Qwen 3.8 with BF16 27B does not. A community **W4A16** build almost does. 
 
-HyperQwen is a pinned vLLM patch + weight recipe that finishes that fit (**including a DFlash2 drafter model**) and documents how to serve it on cards people actually own.
+HyperQwen is a pinned [vLLM](https://vllm.ai/) server engine patch + weight recipe that finishes that fit (**including a DFlash2 drafter model**) and documents how to serve it on cards people actually own.
 
 ### Other ways to run a local model
 
 | Approach | What it is good at | Where it misses this job |
 |----------|--------------------|--------------------------|
-| Stock vLLM | Serving a model that fits | You build the long-context, DFlash, and requant steps yourself. The invent-loop vs sticky split is not documented. |
+| Stock vLLM | Serving a model that fits | Manual tuning for long-context, DFlash, and requant. |
 | llama.cpp GGUF | A quantized dense model in VRAM | Fine for a GGUF that fits. No HyperQwen DFlash2 mode switch. |
-| FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Different limit (RAM and the PCIe bus). Higher quiz score here. Not a dense 27B with these two harness jobs. |
+| FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Throughput limited by RAM and PCIe bus.|
 | A bigger GPU | More VRAM, fewer tricks | Costs more. This experiment is what one 24 GB card can do. |
-| **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 ~96k | Dense 27B that **fits this hardware**, with a tested recipe for invent-loop + sticky on one WSL 4090. |
+| **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 96k context | Dense 27B that **fits this hardware**|
 
 ---
 
