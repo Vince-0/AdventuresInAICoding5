@@ -43,7 +43,6 @@ HyperQwen is a pinned [vLLM](https://vllm.ai/) server engine patch + weight reci
 | Stock vLLM | Serving a model that fits | Manual tuning for long-context, DFlash, and requant. |
 | llama.cpp GGUF | A quantized dense model in VRAM | Fine for a quant that fits. No DFlash2 drafting |
 | FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Throughput limited by RAM and PCIe bus.|
-| A bigger GPU | More VRAM, fewer tricks | Costs more. This experiment is what one 24 GB card can do. |
 | **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 KV, 96k context | Dense 27B that **fits this hardware**|
 
 **How they fit on this 24 GB card** (same WSL2 RTX 4090 box — weights vs KV vs context vs decode):
@@ -55,9 +54,8 @@ HyperQwen is a pinned [vLLM](https://vllm.ai/) server engine patch + weight reci
 | FreeToken dense | **Qwen3.8-27B** **NVFP4** (~20 GiB GPU + ~2.4 GiB host embeds) | hybrid ~3–4 GiB @48–64k | **~48k** sticky (~64k invent boot) | **~43** tok/s | Weights eat most of the card |
 | FreeToken MoE | **gpt-oss-20b** **MXFP4** (~13 GiB + host experts) | pin-limited | ≪ dense 96k | **~55** tok/s | Different model; PCIe/RAM bound |
 | Stock vLLM | — | — | — | — | Not measured on this sheet |
-| A bigger GPU | — | — | — | — | N/A on this box |
 
-One-line story: HyperQwen packs **Qwen3.8 W4A16 + int8 KV** into ~96k and leads decode; llama packs **Qwen3.8 UD-Q4_K_M + q4_0 KV** into ~180k; FreeToken dense keeps **Qwen3.8 NVFP4** (~20 GiB) resident on Ada, so context is whatever fits in the leftover few GiB.
+HyperQwen packs **Qwen3.8 W4A16 + int8 KV** into ~96k and leads decode; llama packs **Qwen3.8 UD-Q4_K_M + q4_0 KV** into ~180k; FreeToken dense keeps **Qwen3.8 NVFP4** (~20 GiB) resident on Ada, so context is whatever fits in the leftover few GiB.
 
 ---
 
