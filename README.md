@@ -41,7 +41,7 @@ HyperQwen is a pinned [vLLM](https://vllm.ai/) server engine patch + weight reci
 | Approach | What it is good at | Where it misses this job |
 |----------|--------------------|--------------------------|
 | Stock vLLM | Serving a model that fits | Manual tuning for long-context, DFlash, and requant. |
-| llama.cpp GGUF | A quantized dense model in VRAM | Fine for a GGUF that fits. No HyperQwen DFlash2 mode switch. |
+| llama.cpp GGUF | A quantized dense model in VRAM | Fine for a quant that fits. No DFlash2 drafting |
 | FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Throughput limited by RAM and PCIe bus.|
 | A bigger GPU | More VRAM, fewer tricks | Costs more. This experiment is what one 24 GB card can do. |
 | **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 KV, 96k context | Dense 27B that **fits this hardware**|
