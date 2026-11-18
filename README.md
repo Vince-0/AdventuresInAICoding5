@@ -59,7 +59,7 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
-I would adjust approach to get that sweet 256k context size of FreeToken Mixture-of-Experts.
+I would adjust approach to get that sweet 256k context size of FreeToken Mixture-of-Experts on an earlier Qwen3.6 model.
 
 ### Context size
 
