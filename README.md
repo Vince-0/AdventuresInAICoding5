@@ -61,6 +61,29 @@ I like the vanilla llama.cpp GGUF approach for a good context size and decode sp
 
 I would adjust approach to get that sweet 256k context size of FreeToken Mixture-of-Experts.
 
+### Context size
+
+Context size is how much of the conversation + pasted files the model can “see at once” (in tokens).
+
+Past that limit, older stufffalls out of the window and the model literally cannot read it anymore.
+
+Agents and coding jobs need the working set in-window (the file you’re editing, the error log, the plan, prior tool results). 
+
+If that doesn’t fit, the model forgets, re-asks, or invents from a truncated view.
+
+Practical example:
+
+You’re fixing a bug with OpenCode. The harness pastes src/parser.py (8k tokens), the failing test (2k), and the last 20 tool turns (30k). That’s already 40k.
+
+  • On FreeToken dense (48k) you’re near the ceiling — one more large file and something drops.
+  
+  • On HyperQwen (96k) you still have room for a second module + a longer plan.
+  
+  • On llama (180k) you can keep a fat multi-file /plan without constantly re-attaching files.
+
+So bigger context isn’t “smarter IQ”, it’s how much of the job stays visible without the harness re-feeding or the model guessing.
+
+
 ---
 
 ## How
