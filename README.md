@@ -38,13 +38,13 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 
 ### Other ways to run a local model
 
-| Approach | What it is good at | Where it misses this job |
-|----------|--------------------|--------------------------|
-| **HyperQwen** | Custom vLLM patch and weights | Dense 27B that **fits this hardware** |
-| llama.cpp GGUF | A quantized dense model in VRAM | Fine for a quant that fits. No DFlash2 drafting. |
-| FreeToken dense | Same Qwen3.8 NVFP4 on FreeToken | Weights eat VRAM; ctx and decode lag HyperQwen/llama. |
-| FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Throughput limited by RAM and PCIe bus. |
-| Stock vLLM | Serving a model that fits | Manual tuning for long-context, DFlash, and requant. |
+| Approach | Pros | Cons |
+|----------|------|------|
+| **HyperQwen** | Custom vLLM patch + weights; fast **DFlash2** decode (~134 tok/s) | Medium context on this box (~**96k**) |
+| llama.cpp GGUF | Simple GGUF serve; largest dense ctx here (~**180k**); MTP | Slower decode than HyperQwen; no DFlash2 |
+| FreeToken dense | Same Qwen3.8 family on FreeToken (NVFP4) | Fat weights → ~**48k** ctx; ~43 tok/s |
+| FreeToken MoE | MoE bigger than VRAM (experts in RAM); up to ~**256k** ctx | Different model (3.6-A3B); PCIe/CPU-bound decode (~41 tok/s) |
+| Stock vLLM | Stock engine; serves a model that fits | You DIY long-context, DFlash, and requant |
 
 **How they fit on this 24 GB card**
 
