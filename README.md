@@ -49,9 +49,9 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 
 | Approach | Weights (model · quant) | KV | Context | Decode (invent warm) | Why |
 |----------|-------------------------|-----|---------------|---------------------:|-----|
-| **HyperQwen** | Qwen3.8-27B W4A16 -AutoRound-`fast` (15 GiB) + **DFlash2** (1.2 GiB) | int8 4.8 GiB @96k | **~96k** | **~134** tok/s | Lean weights + quantized KV |
-| llama.cpp GGUF | Qwen3.8-27B** **UD-Q4_K_M GGUF (~16 GiB) | **q4_0** (grows with `-c`) | **~80k** sticky-proven | **74** tok/s (MTP on) | Leanest KV bytes/tok |
-| FreeToken dense | Qwen3.8-27B** **NVFP4 (~20 GiB GPU + 2.4 GiB host embeds) | hybrid 3–4 GiB @48–64k | **~48k** | **43** tok/s | Weights eat most of the card |
+| **HyperQwen** | Qwen3.8-27B W4A16 -AutoRound-`fast` (15 GiB) + **DFlash2** (1.2 GiB) | int8 4.8 GiB @96k | **96k** | **134** tok/s | Lean weights + quantized KV |
+| llama.cpp GGUF | Qwen3.8-27B** **UD-Q4_K_M GGUF (~16 GiB) | **q4_0** (grows with `-c`) | **80k** | **74** tok/s (MTP on) | Leanest KV bytes/tok |
+| FreeToken dense | Qwen3.8-27B** **NVFP4 (~20 GiB GPU + 2.4 GiB host embeds) | hybrid 3–4 GiB @48–64k | **48k** | **43** tok/s | Weights eat most of the card |
 | FreeToken MoE | Qwen3.6-35B-A3B** **NVFP4 | hybrid 5.0 GiB @256k + host experts | **256k** | **41** tok/s | Experts off GPU → room for KV; decode PCIe/CPU-bound |
 
 HyperQwen packs **Qwen3.8 W4A16 + int8 KV** into ~96k and leads decode; llama packs **Qwen3.8 UD-Q4_K_M + q4_0 KV** into ~180k; FreeToken dense keeps **Qwen3.8 NVFP4** (~20 GiB) resident on Ada, so context is whatever fits in the leftover few GiB.
