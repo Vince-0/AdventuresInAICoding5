@@ -48,11 +48,11 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 **How they fit on this 24 GB card**
 
 | Approach | Weights (model/quant) | Size | KV | Context | Decode tok/s | Why |
-|----------|-------------------------|-----|---------------|---------------------:|-----|
+|----------|----------------------|------|----|---------|-------------:|-----|
 | **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 4.8 GB | 96k | **134** | Lean weights + quantized KV |
-| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** (grows with `-c`) | 80k | 74 | Leanest KV bytes/tok, MTP |
+| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** (grows with `-c`) | 180k | 74 | Leanest KV bytes/tok, MTP |
 | FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | hybrid 3–4 GB | 48k | 43 | Weights eat most of the card |
-| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | - | hybrid 5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
+| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | ~22GB disk | hybrid 5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
 
 ---
 
