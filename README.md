@@ -15,7 +15,7 @@ Full Qwen3.8-27B stacks up on a hard coding test against famous AIs.
 
 ![SWE-bench Pro](https://github.com/Vince-0/AdventuresInAICoding5/blob/dcc42bb37b9ad51260b33dcb026570a64b02f6e1/pics/SWE-bench-Pro-qwen-3-8-27b2.jpg)
 
-HyperQwen's W4A16 (4 weights stored ,16bit activations for live math) quantization is a compressed copy of that same 27B model so it fits on a gaming GPU with about a one-point IFBench drop.
+HyperQwen's W4A16 (4 weights stored ,16bit activations for live math) quantization is a compressed copy of that same 27B model.
 
 I tried it on WSL2 Ubuntu, RTX 4090 **24 GB VRAM** card minus 1.2GB for Windows, 27 GB system RAM, driver 610.88, GPU power limit 450 W, Python venv.
 [HyperQwen's WSL2 + 4090 notes](https://github.com/syv-ai/HyperQwen/blob/main/docs/wsl2-4090.md)
@@ -34,7 +34,7 @@ This round asks a different question: what does a **dense, strong open model** (
 
 Vanilla Qwen 3.8 BF16 27B full wieghts (56GB) does not fit in 24GB VRAM. A community **W4A16** quantization (22GB) + KV cache + context almost does. 
 
-HyperQwen is a pinned [vLLM](https://vllm.ai/) server engine patch + weight recipe that finishes that fit (**including a DFlash2 drafter model**) and documents how to serve it on cards people actually own.
+HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that finishes that fit (**including a DFlash2 drafter model**) and documents how to serve it.
 
 ### Other ways to run a local model
 
@@ -43,17 +43,16 @@ HyperQwen is a pinned [vLLM](https://vllm.ai/) server engine patch + weight reci
 | Stock vLLM | Serving a model that fits | Manual tuning for long-context, DFlash, and requant. |
 | llama.cpp GGUF | A quantized dense model in VRAM | Fine for a quant that fits. No DFlash2 drafting. |
 | FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Throughput limited by RAM and PCIe bus.|
-| **HyperQwen** | Patched vLLM, W4A16, DFlash2, int8 KV, 96k context | Dense 27B that **fits this hardware**|
+| **HyperQwen** | Custom vllm patch and weights | Dense 27B that **fits this hardware**|
 
 **How they fit on this 24 GB card**
 
-| Approach | Weights (model · quant) | KV | Ctx that fits | Decode (invent warm) | Why |
+| Approach | Weights (model · quant) | KV | Context | Decode (invent warm) | Why |
 |----------|-------------------------|-----|---------------|---------------------:|-----|
-| **HyperQwen** | **Qwen3.8-27B** **W4A16**-AutoRound-`fast` (~15 GiB) + **DFlash2** **W4A16** (~1.2 GiB) | **int8** ~4.8 GiB @96k | **~96k** | **~134** tok/s (~**147** sticky) | Lean weights + quantized KV |
-| llama.cpp GGUF | **Qwen3.8-27B** **UD-Q4_K_M** GGUF (~16 GiB) | **q4_0** (grows with `-c`) | **~180k** sticky-proven | **~74** tok/s (MTP on) | Leanest KV bytes/tok |
-| FreeToken dense | **Qwen3.8-27B** **NVFP4** (~20 GiB GPU + ~2.4 GiB host embeds) | hybrid ~3–4 GiB @48–64k | **~48k** sticky (~64k invent boot) | **~43** tok/s | Weights eat most of the card |
-| FreeToken MoE | **Qwen3.6-35B-A3B** **NVFP4** (offload; replaces gpt-oss bakeoff MoE) | hybrid ~5.0 GiB @256k + host experts | **~256k** sticky (model max) | **~41** tok/s | Experts off GPU → room for KV; decode PCIe/CPU-bound |
-| Stock vLLM | — | — | — | — | Not measured on this sheet |
+| **HyperQwen** | Qwen3.8-27B W4A16 -AutoRound-`fast` (15 GiB) + **DFlash2** (1.2 GiB) | int8 4.8 GiB @96k | **~96k** | **~134** tok/s | Lean weights + quantized KV |
+| llama.cpp GGUF | Qwen3.8-27B** **UD-Q4_K_M GGUF (~16 GiB) | **q4_0** (grows with `-c`) | **~80k** sticky-proven | **74** tok/s (MTP on) | Leanest KV bytes/tok |
+| FreeToken dense | Qwen3.8-27B** **NVFP4 (~20 GiB GPU + 2.4 GiB host embeds) | hybrid 3–4 GiB @48–64k | **~48k** | **43** tok/s | Weights eat most of the card |
+| FreeToken MoE | Qwen3.6-35B-A3B** **NVFP4 | hybrid 5.0 GiB @256k + host experts | **256k** | **41** tok/s | Experts off GPU → room for KV; decode PCIe/CPU-bound |
 
 HyperQwen packs **Qwen3.8 W4A16 + int8 KV** into ~96k and leads decode; llama packs **Qwen3.8 UD-Q4_K_M + q4_0 KV** into ~180k; FreeToken dense keeps **Qwen3.8 NVFP4** (~20 GiB) resident on Ada, so context is whatever fits in the leftover few GiB.
 
