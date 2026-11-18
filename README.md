@@ -40,10 +40,10 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 
 | Approach | Pros | Cons |
 |----------|------|------|
-| **HyperQwen** | Custom vLLM patch + weights; fast **DFlash2** decode (~134 tok/s) | Medium context on this box (~**96k**) |
-| llama.cpp GGUF | Simple GGUF serve; largest dense ctx here (~**180k**); MTP | Slower decode than HyperQwen; no DFlash2 |
-| FreeToken dense | Same Qwen3.8 family on FreeToken (NVFP4) | Fat weights → ~**48k** ctx; ~43 tok/s |
-| FreeToken MoE | MoE bigger than VRAM (experts in RAM); up to ~**256k** ctx | Different model (3.6-A3B); PCIe/CPU-bound decode (~41 tok/s) |
+| **HyperQwen** | Custom vLLM patch + weights, fastest decode **DFlash2** | Medium context |
+| llama.cpp GGUF | GGUF package, largest dense context, MTP | Slower decode than HyperQwen |
+| FreeToken dense | Same Qwen3.8 family on FreeToken | Big weights = small context |
+| FreeToken MoE | MoE bigger than VRAM (experts in RAM); up to **256k** ctx | Different model (3.6-A3B); PCIe/CPU-bound decode |
 | Stock vLLM | Stock engine; serves a model that fits | You DIY long-context, DFlash, and requant |
 
 **How they fit on this 24 GB card**
