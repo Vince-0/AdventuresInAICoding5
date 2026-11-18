@@ -36,7 +36,7 @@ Vanilla Qwen 3.8 BF16 27B full wieghts (56GB) does not fit in 24GB VRAM. A commu
 
 HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that finishes that fit (**including a DFlash2 drafter model**) and documents how to serve it.
 
-### Other ways to run a local model
+### Ways to run a local model
 
 | Approach | Pros | Cons |
 |----------|------|------|
