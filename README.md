@@ -40,10 +40,11 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 
 | Approach | What it is good at | Where it misses this job |
 |----------|--------------------|--------------------------|
-| Stock vLLM | Serving a model that fits | Manual tuning for long-context, DFlash, and requant. |
+| **HyperQwen** | Custom vLLM patch and weights | Dense 27B that **fits this hardware** |
 | llama.cpp GGUF | A quantized dense model in VRAM | Fine for a quant that fits. No DFlash2 drafting. |
-| FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Throughput limited by RAM and PCIe bus.|
-| **HyperQwen** | Custom vllm patch and weights | Dense 27B that **fits this hardware**|
+| FreeToken dense | Same Qwen3.8 NVFP4 on FreeToken | Weights eat VRAM; ctx and decode lag HyperQwen/llama. |
+| FreeToken MoE offload | A MoE model bigger than VRAM, experts in system RAM | Throughput limited by RAM and PCIe bus. |
+| Stock vLLM | Serving a model that fits | Manual tuning for long-context, DFlash, and requant. |
 
 **How they fit on this 24 GB card**
 
