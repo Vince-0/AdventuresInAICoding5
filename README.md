@@ -55,6 +55,10 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 | FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | hybrid 3–4 GB | 48k | 43 | Weights eat most of the card |
 | FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | ~22GB disk | hybrid 5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
 
+I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
+
+I would adjust approach to get that sweet 256k context size of FreeToken Mixture-of-Experts.
+
 ---
 
 ## How
