@@ -332,14 +332,14 @@ People usually ask one question: how many tokens per second? That misses this wr
 
 | Name | What it measures | How to read it |
 |------|------------------|----------------|
-| **Speed** | Use case A decode after warmup | tok/s on a short decode, wall time including time to first token. Higher feels snappier. |
+| **Speed** | Medium decode after warmup | tok/s on a short decode, wall time including time to first token. Higher feels snappier. |
 | **Invent** | Use case A small correct Python | Fixed prompts, extract code, run checks, passed/total. |
-| **Sticky** | Large-context sticky: quote a marker in a fat prompt; prefix cache on turn 2 | Pass/fail quote on 4k–24k under `CTX=long` @ 96k (Mode B n=15). Log `cached_tokens`. |
+| **Sticky** | Use case B large-context sticky quote a marker in a fat prompt, prefix cache on turn 2 | Pass/fail quote on 4k–24k under `CTX=long` |
 
-| Role | Config | Speed | Quiz | Takeaway |
+| Role | Speed | Quiz | Takeaway |
 |------|--------|----------------|------|----------|
-| **Use case A** | Invent: n=7, `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9`, pin=0 | Warm median **134.3 tok/s** | Invent **14/24** | Same window as B. |
-| **Use case B** | Sticky: n=15, **same** `MAX_LEN` / `KV_MEM` | Warm median **147.2 tok/s**; quote **PASS 4k→24k** | Quote passed | Same 96k window; only draft length changes. |
+| **Invent** | **134.3 tok/s** | Pass **14/24** tests | Same context size as B. |
+| **Sticky** | **147.2 tok/s**; quote **PASS 4k→24k** | Quote passed | Same 96k window; only draft length changes. |
 
 ### What I expected vs what happened
 
