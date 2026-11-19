@@ -129,10 +129,18 @@ The difference between the vanilla model and the quantized model is measured by:
 
 **Steps**
 
-| **Use case A** | **Invent-loop** — pair programming / short agent turns. Reply is mostly **new** text. | Daily: shared **96k** window (`CTX=long`, `MAX_LEN=98304`), HyperQwen Mode A (7), port 18020. Roadmap **U-01** / lab profile **A**. |
-| **Use case B** | **Sticky** — repo `/plan`, fat `@file` / agent-read, in-context refactor. | **Same 96k** window; flip `DFLASH_TOKENS=15` (+ lookup) for quote/edit. Lab profile **B**. |
-
 Python venv and HyperQwen’s `docs/install.md`.
+
+**Use case A vs B (ELI5)** — same weights and same 96k window; only the draft check length changes:
+
+| | **Use case A — invent** | **Use case B — sticky** |
+|--|-------------------------|-------------------------|
+| **In plain English** | The model writes **new** text (chat, pair programming, agent invent-loop). | The model mostly **reuses** what you already pasted (quote, edit, `/plan`, fat `@file`). |
+| **When to use** | Daily coding / OpenCode invent turns. | Repo plan, in-context refactor, “quote this marker.” |
+| **Shared settings** | `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9` (96k), port `18020`, `SPEC=dflash2`, prefix cache on | **Same** |
+| **What you flip** | Leave `DFLASH_TOKENS` **unset** (draft check length **7**) | Set `DFLASH_TOKENS=15`, **restart** the server |
+| **Extra B help** | — | Lookup drafting can copy tokens from the prompt; turn 2 can hit the prefix cache |
+| **Decode on this box** | 134 tok/s invent | 147 tok/s sticky |
 
 1. Clone [HyperQwen](https://github.com/syv-ai/HyperQwen). `.env` has `SPEC=dflash2`, `PREFIX_CACHE=1`, `VLLM_WSL2_ENABLE_PIN_MEMORY=1`, `HOST=127.0.0.1`, `GPU_UTIL=0.90`.
 2. `pip install vllm==0.32.0` (plus the pinned deps). `bash patches/apply.sh`.
