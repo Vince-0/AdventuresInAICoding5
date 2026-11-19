@@ -334,49 +334,15 @@ People usually ask one question: how many tokens per second? That misses this wr
 |------|------------------|----------------|
 | **Speed** | Medium decode after warmup | tok/s on a short decode, wall time including time to first token. Higher feels snappier. |
 | **Invent** | Use case A small correct Python | Fixed prompts, extract code, run checks, passed/total. |
-| **Sticky** | Use case B large-context sticky quote a marker in a fat prompt, prefix cache on turn 2 | Pass/fail quote; ladder targets 4k–24k (measured through **25138** prompt tokens) under `CTX=long` |
+| **Sticky** | Use case B large-context sticky quote a marker in a fat prompt, use the cache | Pass/fail to find the sticky quote in the prompt |
 
 | Role | Speed | Test |
 |------|-------|------|
 | **Invent** | **134.3 tok/s** | Pass **14/24** tests |
-| **Sticky** | **147.2 tok/s** | Quote **PASS** through **25138** prompt tokens (ladder target **24576**) |
+| **Sticky** | **147.2 tok/s** | Quote **PASS** < 25k prompt tokens |
 
-Both speed figures are warm short-decode (**41** prompt tokens). Sticky’s **25138** is the quote test only — not the speed bench.
-
-### What I expected vs what happened
-
-| Expectation | On this 4090 |
-|-------------|----------------|
-| Boots on WSL2 | Yes, after `max_split_size_mb:128`. |
-| Use case A invent-loop around 120 tok/s | Was 115.8 → **175.1** (stock CG) → **156.2** on the safe boot used after WSL recovery. |
-| Both use cases on one weight set | Yes. Shared **`CTX=long` 96k**; A n=7 / B n=15. Restart after env changes. |
-| Sticky quote inside a long prompt | Use case B on **`CTX=long` @ 96k** + n=15: quote OK through **25138** prompt tokens (targets 4k→24k). Raising `KV_MEM` hard-reset WSL. |
-| Useful context of at least 128k | **Not a stable WSL harness path.** Daily = int8 **96k @ 5.2e9** — validate that in OpenCode/Hermes next. |
-| Prefix cache helps agents | Yes. Large `cached_tokens`, and a much shorter second turn — the sticky half of B. |
-| C0 vs gpt-oss on the same 4090 | HyperQwen **14/24**. gpt-oss **20/24**. FreeToken wins the quiz. HyperQwen wins invent-loop decode speed. The speed gap is wider after the re-bench. |
-| Upstream 381 tok/s as an invent-loop number | No. That figure is copy-from-prompt / reproduce-only. |
-| Power limit 90% → 100% explains the +51% | No. Short decode sits around 285 W, under both 405 W and 450 W. The gain lines up with the driver/firmware update and a quieter boot. |
 
 ### What I leave running
-
-| Job | What I use |
-|-----|------------|
-| Invent-loop (pair / OpenCode) | **Use case A @ 96k:** `CTX=long`, n=7, `MAX_LEN=98304`, `KV_MEM=5.2e9`, pin=0, port 18020. |
-| Sticky plan / refactor | **Use case B @ 96k:** same window; add `DFLASH_TOKENS=15` and restart. |
-| Higher quiz score, MoE offload | FreeToken **gpt-oss** on port 1919. |
-| A small fast agent | A #3-class MTP 4B. |
-
-### Context length
-
-| Profile | Rough window | KV | When I use it |
-|---------|--------------|----|----------------|
-| `CTX=fast` | 64k | bf16 | Older faster invent-loop; retired as daily. |
-| `CTX=long` @ lab | **96k** (`MAX_LEN=98304`, `KV_MEM=5.2e9`) | int8 | **Shared A/B daily window — practical ceiling for harness testing.** |
-| `CTX=long` stock | 128–150k | int8 / fp8 | Not proven stable here (prefill/WSL headroom). |
-
-Sticky quote on the shared 96k window passed through **25138** prompt tokens (ladder targets 4k→24k). That is the baseline to stress in a real OpenCode/Hermes session — not “wait for 128k+.”
-
-Optional check: `SPEC=mtp` and `CTX=long` gave a 150k window, warm short decode about **101.5 tok/s**, and 8k time-to-first-token about 3.4 s cold and about 0.65 s once cached (`exp_mtp_ctx_long.json`).
 
 ---
 
