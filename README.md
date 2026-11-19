@@ -259,7 +259,7 @@ How to read it:
 | **`embed_tokens` int8** | Front door: IDs → vectors |
 | **DFlash2** | Side helper that guesses a short block; the body accepts or rejects (HyperQwen Mode A 7 / Mode B 15) |
 | **W4A16 body** | Almost all of the 27B layers, stored 4-bit (AutoRound) |
-| **KV cache** | Remembers this chat; daily path is **`CTX=long` int8** (**5.2 GB** pin for 96k) |
+| **KV cache** | Remembers this chat; daily path is **`CTX=long` int8** |
 | **`lm_head` int8** | Back door: vectors → “which word next?” |
 | **Next token** | Final scores → the word that gets emitted |
 
@@ -269,7 +269,7 @@ How to read it:
 
 A small helper model (**DFlash2**) guesses the next few words. The 27B model checks that guess in one step. Checking a short block is faster than generating one word at a time with the full model.
 
-The project title is [**DFlash: Block Diffusion for Flash Speculative Decoding**](https://github.com/z-lab/dflash) — so the **D** is about **block diffusion**, and **Flash** is the “fast speculative decode” part. **DFlash2** / **DFlash 2** is the second generation of that drafter.
+The project title is [**DFlash: Block Diffusion for Flash Speculative Decoding**](https://github.com/z-lab/dflash) so the **D** is about **block diffusion**, and **Flash** is the “fast speculative decode” part. **DFlash2** / **DFlash 2** is the second generation of that drafter.
 
 DFlash2 is **not** a slice of the 27B weights. It is a separate **about 1.92B**-parameter draft model. The original is BF16 (**about 3.85 GB**): [incoai/Qwen3.8-27B-DFlash2](https://huggingface.co/incoai/Qwen3.8-27B-DFlash2). HyperQwen serves a smaller copy (**about 1.2 GB**) made with [GPTQ](https://arxiv.org/abs/2210.17323). That file is [syvai/Qwen3.8-27B-DFlash2-W4A16](https://huggingface.co/syvai/Qwen3.8-27B-DFlash2-W4A16) ([`prepare/fetch_dflash2.py`](https://github.com/syv-ai/HyperQwen/blob/main/prepare/fetch_dflash2.py)).
 
@@ -278,15 +278,15 @@ DFlash2 is **not** a slice of the 27B weights. It is a separate **about 1.92B**-
 | **What** | The big 27B | The small about-1.92B guesser |
 | **Method** | **AutoRound** (shipped as compressed-tensors) | **[GPTQ](https://arxiv.org/abs/2210.17323)** (HyperQwen `drafter/quant_dflash2.py`) |
 | **Idea** | Round with AutoRound’s calibration | Round with GPTQ’s calibration (Hessian / error feedback) |
-| **Result label** | W4A16 | Also W4A16 (about 3.85 GB → about 1.2 GB) |
+| **Result label** | W4A16 | Also W4A16 but GPTQ |
 
-More detail: [drafter/README.md](https://github.com/syv-ai/HyperQwen/blob/main/drafter/README.md).
+HyperQwen preparation: [drafter/README.md](https://github.com/syv-ai/HyperQwen/blob/main/drafter/README.md).
 
   1. Download an already 4-bit Qwen (the public W4A16 AutoRound / compressed-tensors build). Most of the 27B body is already small enough for 24 GB.
 
   2. That public file still wastes VRAM, so prepare/ rewrites a few leftover full-size pieces once, on the CPU, in place:
-    • lm_head (output layer) → int8 (1.3 GB saved)
-    • embed_tokens (input embeddings) → int8 (1.3 GB saved)
+    • lm_head (output layer) → int8 
+    • embed_tokens (input embeddings) → int8 
     • mtp.* (built-in draft module, if present) → int8
 
   3. Build a smaller draft vocabulary — a 41k-row slice of the output head so a draft model doesn’t score the full 248k vocab every guess.
@@ -303,57 +303,15 @@ Same idea (guess → big model checks), different guesser.
 |---|---------|-------------|
 | **What guesses** | Small **heads baked into** Qwen3.8 (`nextn`) | **Separate** 1.9B draft model |
 | **How it guesses** | Predicts the next few tokens from those heads | **Block** draft (diffusion-style); proposes a short phrase |
-| **Extra files** | Often already in the checkpoint / GGUF | Extra 1.2 GB W4A16 drafter on GPU |
+| **Extra files** | Often already in the checkpoint / GGUF | W4A16 drafter on GPU |
 | **Typical home** | llama.cpp `draft-mtp`; HyperQwen `SPEC=mtp` | HyperQwen `SPEC=dflash2` (this adventure’s daily) |
-| **On this box** | 101 tok/s (HyperQwen MTP) / 70–85 (llama.cpp cite) | 134–147 tok/s invent/sticky @ 96k |
+| **On this box** | 101 tok/s (HyperQwen MTP) / 70–85 (llama.cpp) | 134–147 tok/s invent/sticky @ 96k |
 
-**ELI5:** MTP = the model’s **built-in mini-crystal-ball**. DFlash2 = a **sidekick model** that blurts a whole short guess for the big model to mark right/wrong. Both save full-model steps when guesses land; DFlash2 is what HyperQwen tuned for the invent/sticky split here.
+MTP = the model’s **built-in mini-crystal-ball**.
 
----
+DFlash2 = a **sidekick model** that blurts a whole short guess for the big model to mark right/wrong. 
 
-### Two practical use cases (lab A/B; see also C)
-
-Full trio + host-RAM table for framework testing: [`03_ROADMAP.md` — Lab profiles](../03_ROADMAP.md#lab-profiles--use-case-vs-implementation). **C** (personal auto-agent) is roadmap **U-04**, not measured in this HyperQwen write-up.
-
-HyperQwen’s Mode A / Mode B are only a **check-length** switch (7 invent vs 15 copy-from-prompt). For this adventure the measured split is:
-
-| | **Use case A — invent-loop** | **Use case B — sticky** |
-|--|------------------------------|---------------------------|
-| **Job** | Pair programming, short OpenCode/OmO turns | Repo `/plan`, fat file reads, in-context refactor |
-| **What the reply does** | Mostly **new** text (answer, write code, tool calls) | Holds a **fat prompt** and plans or edits against it |
-| **Context (shared)** | **96k** — `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9` (pool 100k) | **Same 96k** settings |
-| **DFlash check** | HyperQwen Mode A (7) | Mode B (15) + lookup when quoting/editing; plan/synthesize can stay 7 |
-| **Prefix cache** | On — cheap follow-up edits | On — second turn after the slow first read |
-| **Decode (warm median)** | **134.3 tok/s** (`rebench_usecase_a_96k_invent.json`) | **147.2 tok/s** (`rebench_usecase_b_96k_decode.json`) |
-| **What I measure** | Decode tok/s, C0 quiz, agent smoke | Sticky quote **4k→24k**; `cached_tokens` on turn 2 |
-
-Long document writing from a short brief stays closer to **A** (invent + long output). RAG is usually **B-sized context** (chunks in the prompt); flip to Mode B (15) only when the answer must quote the chunks.
-
-How much context the server can hold is the `CTX` / `MAX_LEN` / `KV_MEM` knobs. On this WSL box the **usable** ceiling is **96k** with **int8** KV (`CTX=long`) — not whatever a stock profile advertises.
-
-**Shared 96k boot (both use cases):**
-
-| Switch | Value | Meaning |
-|--------|-------|---------|
-| `SPEC` | `dflash2` | DFlash2 block guesser |
-| `CTX` | `long` | int8 KV path (needed for 96k on 23 GB usable) |
-| `MAX_LEN` | `98304` | **96k** context window |
-| `KV_MEM` | `5200000000` | 5.2 GB pin (pool 100k). Do not overshoot — 6.2e9 hard-reset WSL |
-| `PREFIX_CACHE` | `1` | Reuse KV across turns |
-| `VLLM_WSL2_ENABLE_PIN_MEMORY` | `0` | Pin=1 OOMs Marlin on current boots |
-| `HOST` / `PORT` | `127.0.0.1` / `18020` | Local API |
-| `GPU_UTIL` | `0.90` | Headroom |
-| `PYTORCH_CUDA_ALLOC_CONF` | `expandable_segments:False,max_split_size_mb:128` | WSL Marlin boot fix |
-| Safe graphs | `MAX_SEQS=2` `CG=16` `CUDAGRAPH_MODE=PIECEWISE` | Quieter than stock CG=64 |
-
-**A vs B flip (only draft length):**
-
-| Use case | Change |
-|----------|--------|
-| **A invent-loop (daily)** | Leave `DFLASH_TOKENS` unset (7) |
-| **B sticky quote/edit** | `DFLASH_TOKENS=15`, restart |
-
-Lookup drafting stays on HyperQwen’s usual DFlash2 default unless you turn `LOOKUP` off for debugging.
+Both save full-model steps when guesses land; DFlash2 is what HyperQwen tuned for the invent/sticky use cases here.
 
 ---
 
