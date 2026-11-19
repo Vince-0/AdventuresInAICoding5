@@ -54,8 +54,8 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 |----------|----------------------|------|----|---------|-------------:|-----|
 | **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 4.8 GB | 96k | **134** | Lean weights + quantized KV |
 | llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** (grows with `-c`) | 180k | 74 | Leanest KV bytes/tok, MTP |
-| FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | hybrid 3–4 GB | 48k | 43 | Weights eat most of the card |
-| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | ~22GB disk | hybrid 5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
+| FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | no quant 3–4 GB | 48k | 43 | Weights eat most of the card |
+| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | ~22GB disk | no quant 5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
@@ -75,14 +75,27 @@ Practical example:
 
 You’re fixing a bug with OpenCode. The harness pastes src/parser.py (8k tokens), the failing test (2k), and the last 20 tool turns (30k). That’s already 40k.
 
-  • On FreeToken dense (48k) you’re near the ceiling — one more large file and something drops.
+- **FreeToken dense at 48k** it's near the ceiling, one more large file and something drops.
   
-  • On HyperQwen (96k) you still have room for a second module + a longer plan.
+- **HyperQwen at 96k** still has room for a second code module + a longer plan.
   
-  • On llama (180k) you can keep a fat multi-file /plan without constantly re-attaching files.
+- **llama at 180k** can keep a fat multi-file /plan without constantly re-attaching files.
 
 So bigger context isn’t “smarter IQ”, it’s how much of the job stays visible without the harness re-feeding or the model guessing.
 
+### Key-value cache
+
+KV = the model’s scratchpad for “tokens I’ve already seen,” kept on the GPU so stays is faster. 
+
+Different engines store that scratchpad at different precision / layout, so the same context costs different GiB.
+
+- **HyperQwen: int8 4.8 GB** stored at 8-bit not the full 16-bit = 4.8GB at 96k context.
+
+- **llama.cpp: q4_0 5GB** stored at 4-bit, the VRAM cost scales with context so 180k context doesn't exceed available VRAM.
+
+- **FreeToken dense: hybrid 4GB** not quantized but with 20GB weights there isn't much room for > 48k context.
+
+- **FreeToken MoE: hybrid 5GB**  Expert weights are split to RAM and makes room for context at 256k and smaller model weights in Qwen3.6.
 
 ---
 
