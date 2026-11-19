@@ -140,7 +140,7 @@ Python venv and HyperQwen’s `docs/install.md`.
 | **Shared settings** | `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9` (96k), `SPEC=dflash2`, prefix cache on | **Same** |
 | **Difference** | Leave `DFLASH_TOKENS` = **7**) | Set `DFLASH_TOKENS=15` |
 | **Lookup draft** | None | Lookup drafting can copy tokens from the prompt, turn 2 can hit the prefix cache |
-| **Decode on this box** | 134 tok/s | 147 tok/s |
+| **Decode speed** | 134 tok/s | 147 tok/s |
 
 1. Clone [HyperQwen](https://github.com/syv-ai/HyperQwen). `.env` has `SPEC=dflash2`, `PREFIX_CACHE=1`, `VLLM_WSL2_ENABLE_PIN_MEMORY=1`, `HOST=127.0.0.1`, `GPU_UTIL=0.90`.
 2. `pip install vllm==0.32.0` (plus the pinned deps). `bash patches/apply.sh`.
@@ -149,22 +149,20 @@ Python venv and HyperQwen’s `docs/install.md`.
    `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False,max_split_size_mb:128`  
    `expandable_segments:False` alone runs out of memory during Marlin. `:True` dies while KV is starting.
 5. `bash single-user/start_qwen.sh` → `http://127.0.0.1:18020/v1` (name `qwen3.8-27b`).
-6. **Use case A (daily):** leave `DFLASH_TOKENS` unset (7), **`CTX=long`**, `MAX_LEN=98304`, `KV_MEM=5.2e9` (shared 96k).
-7. **Use case B (sticky):** same 96k window; set `DFLASH_TOKENS=15` and restart for quote/edit.
+6. **Use case A:** leave `DFLASH_TOKENS` unset (7), **`CTX=long`**, `MAX_LEN=98304`, `KV_MEM=5.2e9` (shared 96k).
+7. **Use case B:** same 96k window; set `DFLASH_TOKENS=15` and restart .
 
+Set variables and start:
 ```bash
 cd ~/LLM/HyperQwen
 set -a && source .env && set +a
 # CTX=long   # int8 KV — daily 96k with MAX_LEN / KV_MEM below
-# CTX=fast   # older 64k invent-loop; retired as daily
 export PATH="$PWD/venv/bin:$PATH"
 bash single-user/start_qwen.sh
 curl -s -H "Authorization: Bearer $VLLM_API_KEY" http://127.0.0.1:18020/health
 ```
 
-VRAM holds weights, the drafter, and KV — on top of the **1.2 GB** Windows/WSLg already took. Leave the shipped `KV_MEM` alone on stock Use case A `-fast` unless you have measured a reason to change it. For Use case B on this WSL box, lower it so prefill still fits in the remaining **23 GB**. System RAM here is for the OS and for preparing weights. It is not an expert pool.
-
-For short quizzes and for agents, turn thinking off (`chat_template_kwargs.enable_thinking=false`). If thinking is on, the reply budget fills with reasoning and `content` comes back empty.
+For short quizzes and for agents like Hermes, turn thinking off (`chat_template_kwargs.enable_thinking=false`). If thinking is on, the reply budget fills with reasoning and `content` comes back empty.
 
 <details>
 <summary><strong>Key concepts</strong></summary>
@@ -207,10 +205,6 @@ Cross-adventure **lab profiles A/B/C** (including personal auto-agent + host-RAM
 
 </details>
 
-
-
-
-
 --- 
 
 **How the pieces fit together:**
@@ -234,8 +228,6 @@ flowchart TB
   B <--> KV
   D -.->|guess / verify| B
 ```
-
-Size on disk is about **22 GB** (vanilla BF16 was about **56 GB**). Sizes below are approximate stored weight sizes from HyperQwen’s notes; KV is runtime VRAM, not part of that file.
 
 How to read it:
 
