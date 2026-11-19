@@ -46,16 +46,16 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 | llama.cpp GGUF | GGUF package, largest dense context, MTP | Slower decode than HyperQwen |
 | FreeToken dense | Same Qwen3.8 family on FreeToken | Big weights = small context |
 | FreeToken MoE | MoE bigger than VRAM (experts in RAM); **largest context** | Different model (3.6-A3B); PCIe/CPU-bound decode |
-| Stock vLLM | Stock engine, serves a model that fits | You DIY long-context, DFlash, and requant |
+| Stock vLLM | Stock engine, serves a model that fits | DIY config long-context, DFlash, and requant |
 
 **How they fit on this 24 GB card**
 
 | Approach | Weights (model/quant) | Size | KV | Context | Decode tok/s | Why |
 |----------|----------------------|------|----|---------|-------------:|-----|
-| **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 ~5GB | 96k | **134** | Lean weights + quantized KV |
-| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** ~5GB (grows with `-c`) | 180k | 74 | Leanest KV bytes/tok, MTP |
-| FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | no quant ~4GB | 48k | 43 | Weights eat most of the card |
-| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB disk | no quant ~5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
+| **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **134** | Lean weights + quantized KV |
+| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB (grows with `-c`) | 180k | 74 | Leanest KV bytes/tok, MTP |
+| FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | no quant 4GB | 48k | 43 | Weights eat most of the card |
+| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
@@ -75,11 +75,11 @@ Practical example:
 
 You’re fixing a bug with OpenCode. The harness pastes src/parser.py (8k tokens), the failing test (2k), and the last 20 tool turns (30k). That’s already 40k.
 
-- **FreeToken dense at 48k** it's near the ceiling, one more large file and something drops.
-  
 - **HyperQwen at 96k** still has room for a second code module + a longer plan.
-  
+
 - **llama at 180k** can keep a fat multi-file /plan without constantly re-attaching files.
+  
+- **FreeToken dense at 48k** it's near the ceiling, one more large file and something drops.
 
 - **FreeToken MoE at 256k** can hold that whole working set and still leave room for more files or a longer plan (different model: Qwen3.6-A3B).
 
@@ -91,13 +91,13 @@ KV = the model’s scratchpad for “tokens I’ve already seen,” kept on the 
 
 Different engines store that scratchpad at different precision / layout, so the same context costs different GB.
 
-- **HyperQwen: int8 ~5GB** stored at 8-bit not the full 16-bit, at 96k context.
+- **HyperQwen: int8 5GB** stored at 8-bit not the full 16-bit, at 96k context.
 
-- **llama.cpp: q4_0 ~5GB** stored at 4-bit; VRAM cost scales with context so 180k still fits this card.
+- **llama.cpp: q4_0 5GB** stored at 4-bit; VRAM cost scales with context so 180k still fits this card.
 
-- **FreeToken dense: no quant ~4GB** (hybrid layout, not int8/q4); with ~20GB weights there isn’t much room for more than ~48k context.
+- **FreeToken dense: no quant 4GB** (hybrid layout, not int8/q4); with 20GB weights there isn’t much room for more than 48k context.
 
-- **FreeToken MoE: no quant ~5GB** (hybrid layout). Experts live in system RAM, so the GPU keeps less weight and has room for KV at 256k.
+- **FreeToken MoE: no quant 5GB** (hybrid layout). Experts live in system RAM, so the GPU keeps less weight and has room for KV at 256k.
 
 ---
 
@@ -109,7 +109,7 @@ Different engines store that scratchpad at different precision / layout, so the 
 - Copying from the prompt: If the answer is mostly text already in what you pasted (quote this, edit that), the server can grab those words from the prompt instead of inventing
   them. The big model still checks.
   
-- long-context KV: KV = notes for “what I’ve already read.” This lab uses **int8 KV** at **~96k**; fat **prefill** is what breaks WSL/DWM if you push past that.
+- long-context KV: KV = notes for “what I’ve already read.” This lab uses **int8 KV** at **96k**; fat **prefill** is what breaks WSL/DWM if you push past that.
 
 - WSL offload device-pointer handling: under WSL, CPU↔GPU “shared” memory pointers don’t behave like real UVA. HyperQwen’s [`offload-wsl2-devptr`](https://github.com/syv-ai/HyperQwen/blob/main/patches/offload-wsl2-devptr.patch) patch fixes how the offload path reads those pointers so it doesn’t trust a broken mapping.
 
@@ -142,8 +142,8 @@ Docker is not installed in this WSL, so this is a normal Python venv and HyperQw
 ```bash
 cd ~/LLM/HyperQwen
 set -a && source .env && set +a
-# CTX=long   # int8 KV — daily ~96k with MAX_LEN / KV_MEM below
-# CTX=fast   # older ~64k invent-loop; retired as daily
+# CTX=long   # int8 KV — daily 96k with MAX_LEN / KV_MEM below
+# CTX=fast   # older 64k invent-loop; retired as daily
 export PATH="$PWD/venv/bin:$PATH"
 bash single-user/start_qwen.sh
 curl -s -H "Authorization: Bearer $VLLM_API_KEY" http://127.0.0.1:18020/health
@@ -161,7 +161,7 @@ Compared with [#3](https://github.com/Vince-0/AdventuresInAICoding3) (MTP on sma
 
 New in this write-up:
 - Block guesses
-- Two HyperQwen harness jobs (invent-loop vs sticky) on a shared ~96k window
+- Two HyperQwen harness jobs (invent-loop vs sticky) on a shared 96k window
 - Copying from the prompt
 - Prefix cache
 - Smaller conversation memory so long chats fit. 
@@ -539,11 +539,11 @@ Use HyperQwen when the job is dense Qwen3.8-27B on one 24 GB card, an OpenAI-com
 
 ## Reflections
 
-On a 4090 with about 27 GB of system RAM, both use cases share a **~96k** window (`MAX_LEN=98304`, `KV_MEM=5.2e9`) — the **real ceiling to stress in user/harness sessions** on this WSL box (still short of many 128k–200k+ clouds). Usable VRAM is about **23 GB** after Windows/WSLg (~**1.2 GB**). At that window: **A invent ~134 tok/s**, **B sticky ~147 tok/s**, sticky quote through **24k**. Older A-on-`CTX=fast` ~64k was faster (~156–175) but too small for the harness goal. The A/B flip is draft length (n=7 vs n=15), not a second context size.
+On a 4090 with about 27 GB of system RAM, both use cases share a **96k** window (`MAX_LEN=98304`, `KV_MEM=5.2e9`) — the **real ceiling to stress in user/harness sessions** on this WSL box (still short of many 128k–200k+ clouds). Usable VRAM is about **23 GB** after Windows/WSLg (**1.2 GB**). At that window: **A invent ~134 tok/s**, **B sticky ~147 tok/s**, sticky quote through **24k**. Older A-on-`CTX=fast` 64k was faster (156–175) but too small for the harness goal. The A/B flip is draft length (n=7 vs n=15), not a second context size.
 
 The power-limit change does not explain the invent-loop speed jump vs early benches. A short generation sits around 285 W. The driver, the firmware, and the boot path are the likely reasons.
 
-OpenCode/OmO invent-loop is a measured path (the web Tetris run on Use case A). **Next:** Use case B / repo `/plan` **at ~96k** in a real harness, then harness bake-offs on that backend.
+OpenCode/OmO invent-loop is a measured path (the web Tetris run on Use case A). **Next:** Use case B / repo `/plan` **at 96k** in a real harness, then harness bake-offs on that backend.
 
 ---
 
@@ -561,14 +561,14 @@ Pulled plan: [`06_IMPLEMENTATION.md`](../06_IMPLEMENTATION.md) (Qwen3.8-27B GGUF
 
 **No — it wasn’t decode tok/s.**
 
-HyperQwen already wins that fight on this box: invent ~**134** / sticky ~**147** tok/s @ ~96k with DFlash2. Community llama.cpp MTP on a 4090 is more like ~**70–85**. HyperQwen’s own `SPEC=mtp` was **slower** (~101 tok/s), so DFlash2 stayed the daily guesser for speed.
+HyperQwen already wins that fight on this box: invent **134** / sticky **147** tok/s @ 96k with DFlash2. Community llama.cpp MTP on a 4090 is more like **70–85**. HyperQwen’s own `SPEC=mtp` was **slower** (101 tok/s), so DFlash2 stayed the daily guesser for speed.
 
 **Why MTP / llama.cpp anyway:** a **context wall**, not a speed wall.
 
 | | HyperQwen (this adventure) | llama.cpp MTP (`06`) |
 |---|---|---|
-| Bottleneck found | Usable sticky **~96k** under WSL; denser KVarN didn’t buy a safe bigger window | Claim: **q4_0 KV** + lighter **Q4_K_M** (~16–17 GB) → try **>96k** |
+| Bottleneck found | Usable sticky **96k** under WSL; denser KVarN didn’t buy a safe bigger window | Claim: **q4_0 KV** + lighter **Q4_K_M** (~16–17 GB) → try **>96k** |
 | Decode | Already good | Expected **worse** — not the goal |
 | Question | “Can dense 27B run well here?” → **yes @ 96k** | “Can this box hold a **bigger** window than HyperQwen’s ceiling?” |
 
-**ELI5:** HyperQwen gave a strong **daily** 27B server. llama.cpp MTP is to see if a **smaller weight file + denser chat memory** can go **past ~96k** — a context experiment, not a quest for more tok/s.
+**ELI5:** HyperQwen gave a strong **daily** 27B server. llama.cpp MTP is to see if a **smaller weight file + denser chat memory** can go **past 96k** — a context experiment, not a quest for more tok/s.
