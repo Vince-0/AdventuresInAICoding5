@@ -211,8 +211,6 @@ New in this write-up:
 | **Frozen vLLM + HyperQwen** | A known vLLM version, plus patches and scripts that were tested together. | Install, patch, prepare weights, `start_qwen.sh`. |
 | **Speculative decoding** | A small model guesses the next tokens. The big model accepts or rejects them. | [#3](https://github.com/Vince-0/AdventuresInAICoding3) used MTP for this. Here the guesser is DFlash2. |
 | **DFlash2** | The guesser proposes a block of tokens. The 27B model checks the block. | `SPEC=dflash2` for both practical use cases. |
-| **Use case A** | **Invent-loop** — pair programming / short agent turns. Reply is mostly **new** text. | Daily: shared **96k** window (`CTX=long`, `MAX_LEN=98304`), HyperQwen Mode A (7), port 18020. Roadmap **U-01** / lab profile **A**. |
-| **Use case B** | **Sticky** — repo `/plan`, fat `@file` / agent-read, in-context refactor. | **Same 96k** window; flip `DFLASH_TOKENS=15` (+ lookup) for quote/edit. Lab profile **B**. |
 | **Lookup drafting** | If the reply is mostly text already in the prompt, take those tokens from history. | Speed win inside Use case B when refactoring or quoting what is already in context. |
 | **Prefix cache** | Keep the KV for a prompt you will send again, so the next turn skips re-reading it. | First fat read is slow. Second turn on the same prefix is where agents feel fast. |
 | **`-fast` weights** | Extra repack of a few hot parts (output head and draft bits). | Used automatically when those files are present. |
