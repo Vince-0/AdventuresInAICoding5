@@ -253,15 +253,15 @@ flowchart TB
 
 How to read it:
 
-| Piece | Approx. size | Role |
-|-------|--------------|------|
-| **Token IDs** | — | Your prompt, as numbers |
-| **`embed_tokens` int8** | **1.2 GB** (was **2.5 GB** BF16) | Front door: IDs → vectors |
-| **DFlash2** | **1.2 GB** W4A16 | Side helper that guesses a short block; the body accepts or rejects (HyperQwen Mode A 7 / Mode B 15) |
-| **W4A16 body** | **17 GB** | Almost all of the 27B layers, stored 4-bit (AutoRound) |
-| **KV cache** | runtime (**5.2 GB** pin for daily 96k) | Remembers this chat; daily path is **`CTX=long` int8** |
-| **`lm_head` int8** | **1.2 GB** (was **2.5 GB** BF16) | Back door: vectors → “which word next?” |
-| **Next token** | — | Final scores → the word that gets emitted |
+| Piece | Role |
+|-------|------|
+| **Token IDs** | Your prompt, as numbers |
+| **`embed_tokens` int8** | Front door: IDs → vectors |
+| **DFlash2** | Side helper that guesses a short block; the body accepts or rejects (HyperQwen Mode A 7 / Mode B 15) |
+| **W4A16 body** | Almost all of the 27B layers, stored 4-bit (AutoRound) |
+| **KV cache** | Remembers this chat; daily path is **`CTX=long` int8** (**5.2 GB** pin for 96k) |
+| **`lm_head` int8** | Back door: vectors → “which word next?” |
+| **Next token** | Final scores → the word that gets emitted |
 
 ---
 
