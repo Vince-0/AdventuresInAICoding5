@@ -127,10 +127,6 @@ The difference between the vanilla model and the quantized model is measured by:
   2. Perplexity: with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = less surprised. If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
   3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = 0.6% 
 
-**Steps**
-
-Python venv and HyperQwen’s `docs/install.md`.
-
 **Use case A vs B:** same weights and same 96k window only the draft check length changes:
 
 | | **Use case A: invent** | **Use case B: sticky** |
@@ -141,6 +137,11 @@ Python venv and HyperQwen’s `docs/install.md`.
 | **Difference** | Leave `DFLASH_TOKENS` = **7**) | Set `DFLASH_TOKENS=15` |
 | **Lookup draft** | None | Lookup drafting can copy tokens from the prompt, turn 2 can hit the prefix cache |
 | **Decode speed** | 134 tok/s | 147 tok/s |
+
+
+**Steps**
+
+Python venv and HyperQwen’s `docs/install.md`.
 
 1. Clone [HyperQwen](https://github.com/syv-ai/HyperQwen). `.env` has `SPEC=dflash2`, `PREFIX_CACHE=1`, `VLLM_WSL2_ENABLE_PIN_MEMORY=1`, `HOST=127.0.0.1`, `GPU_UTIL=0.90`.
 2. `pip install vllm==0.32.0` (plus the pinned deps). `bash patches/apply.sh`.
@@ -162,7 +163,28 @@ bash single-user/start_qwen.sh
 curl -s -H "Authorization: Bearer $VLLM_API_KEY" http://127.0.0.1:18020/health
 ```
 
-For short quizzes and for agents like Hermes, turn thinking off (`chat_template_kwargs.enable_thinking=false`). If thinking is on, the reply budget fills with reasoning and `content` comes back empty.
+For short quizzes and for agents like Hermes, turn **thinking off** (`chat_template_kwargs.enable_thinking=false`). If thinking is on, the reply budget fills with reasoning and `content` comes back empty.
+
+**Thinking**
+
+Some models can “think out loud” before they answer. That private scratchpad is called thinking (also: reasoning / chain-of-thought).
+
+The useful reply you see is content. Tools an agent wants to run are separate from both.
+
+Every reply has a budget (max_tokens / limit.output) — how many tokens the server is allowed to emit in that turn. 
+
+Thinking, the visible answer, and tool calls all share that same budget.
+
+If thinking is on and the budget is small (e.g. 8k), the model can spend the whole budget on “let me reason…” and then stop. You get:
+- lots of hidden reasoning
+- empty or nearly empty content
+- no tool calls (Hermes / OpenCode look stuck or broken)
+
+If thinking is off, almost every token goes to the real answer or to tools. Short quizzes get a clean graded reply. 
+
+Agents get tool calls instead of a full belly of private monologue.
+
+For short quizzes and for agents like Hermes, turn thinking off — not because thinking is “bad,” but because it fills the reply budget first, and what’s left may be zero for the answer or for tools.
 
 <details>
 <summary><strong>Key concepts</strong></summary>
