@@ -339,7 +339,7 @@ People usually ask one question: how many tokens per second? That misses this wr
 | Role | Speed | Quiz | Takeaway |
 |------|-------|------|----------|
 | **Invent** | **134.3 tok/s** | Pass **14/24** tests | Same context size as B. |
-| **Sticky** | **147.2 tok/s**; quote **PASS 4k→24k** | Quote passed | Same 96k window; only draft length changes. |
+| **Sticky** | **147.2 tok/s** | Quote passed **4k→24k** prompt | Same 96k window; only draft length changes. |
 
 ### What I expected vs what happened
 
