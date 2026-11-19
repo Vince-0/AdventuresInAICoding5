@@ -52,10 +52,10 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 
 | Approach | Weights (model/quant) | Size | KV | Context | Decode tok/s | Why |
 |----------|----------------------|------|----|---------|-------------:|-----|
-| **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 4.8 GB | 96k | **134** | Lean weights + quantized KV |
-| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** (grows with `-c`) | 180k | 74 | Leanest KV bytes/tok, MTP |
-| FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | no quant 3–4 GB | 48k | 43 | Weights eat most of the card |
-| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB disk | no quant 5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
+| **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 ~5GB | 96k | **134** | Lean weights + quantized KV |
+| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** ~5GB (grows with `-c`) | 180k | 74 | Leanest KV bytes/tok, MTP |
+| FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | no quant ~4GB | 48k | 43 | Weights eat most of the card |
+| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB disk | no quant ~5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
@@ -65,7 +65,7 @@ I would adjust approach to get that sweet 256k context size of FreeToken Mixture
 
 Context size is how much of the conversation + pasted files the model can “see at once” (in tokens).
 
-Past that limit, older stufffalls out of the window and the model literally cannot read it anymore.
+Past that limit, older stuff falls out of the window and the model literally cannot read it anymore.
 
 Agents and coding jobs need the working set in-window (the file you’re editing, the error log, the plan, prior tool results). 
 
@@ -81,21 +81,23 @@ You’re fixing a bug with OpenCode. The harness pastes src/parser.py (8k tokens
   
 - **llama at 180k** can keep a fat multi-file /plan without constantly re-attaching files.
 
+- **FreeToken MoE at 256k** can hold that whole working set and still leave room for more files or a longer plan (different model: Qwen3.6-A3B).
+
 So bigger context isn’t “smarter IQ”, it’s how much of the job stays visible without the harness re-feeding or the model guessing.
 
 ### Key-value cache
 
-KV = the model’s scratchpad for “tokens I’ve already seen,” kept on the GPU so stays is faster. 
+KV = the model’s scratchpad for “tokens I’ve already seen,” kept on the GPU so the next token stays faster.
 
-Different engines store that scratchpad at different precision / layout, so the same context costs different GiB.
+Different engines store that scratchpad at different precision / layout, so the same context costs different GB.
 
-- **HyperQwen: int8 4.8 GB** stored at 8-bit not the full 16-bit = 4.8GB at 96k context.
+- **HyperQwen: int8 ~5GB** stored at 8-bit not the full 16-bit, at 96k context.
 
-- **llama.cpp: q4_0 5GB** stored at 4-bit, the VRAM cost scales with context so 180k context doesn't exceed available VRAM.
+- **llama.cpp: q4_0 ~5GB** stored at 4-bit; VRAM cost scales with context so 180k still fits this card.
 
-- **FreeToken dense: hybrid 4GB** not quantized but with 20GB weights there isn't much room for > 48k context.
+- **FreeToken dense: no quant ~4GB** (hybrid layout, not int8/q4); with ~20GB weights there isn’t much room for more than ~48k context.
 
-- **FreeToken MoE: hybrid 5GB**  Expert weights are split to RAM and makes room for context at 256k and smaller model weights in Qwen3.6.
+- **FreeToken MoE: no quant ~5GB** (hybrid layout). Experts live in system RAM, so the GPU keeps less weight and has room for KV at 256k.
 
 ---
 
