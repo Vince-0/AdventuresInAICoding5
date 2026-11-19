@@ -337,7 +337,7 @@ People usually ask one question: how many tokens per second? That misses this wr
 | **Sticky** | Use case B large-context sticky quote a marker in a fat prompt, prefix cache on turn 2 | Pass/fail quote on 4k–24k under `CTX=long` |
 
 | Role | Speed | Quiz | Takeaway |
-|------|--------|----------------|------|----------|
+|------|-------|------|----------|
 | **Invent** | **134.3 tok/s** | Pass **14/24** tests | Same context size as B. |
 | **Sticky** | **147.2 tok/s**; quote **PASS 4k→24k** | Quote passed | Same 96k window; only draft length changes. |
 
