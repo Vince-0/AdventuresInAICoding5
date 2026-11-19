@@ -334,14 +334,14 @@ People usually ask one question: how many tokens per second? That misses this wr
 |------|------------------|----------------|
 | **Speed** | Medium decode after warmup | tok/s on a short decode, wall time including time to first token. Higher feels snappier. |
 | **Invent** | Use case A small correct Python | Fixed prompts, extract code, run checks, passed/total. |
-| **Sticky** | Use case B large-context sticky quote a marker in a fat prompt, prefix cache on turn 2 | Pass/fail quote on 4k–24k under `CTX=long` |
+| **Sticky** | Use case B large-context sticky quote a marker in a fat prompt, prefix cache on turn 2 | Pass/fail quote; ladder targets 4k–24k (measured through **25138** prompt tokens) under `CTX=long` |
 
 | Role | Speed | Test |
 |------|-------|------|
 | **Invent** | **134.3 tok/s** | Pass **14/24** tests |
-| **Sticky** | **147.2 tok/s** | Quote **PASS** through ~**25k** prompt (ladder target 24k) |
+| **Sticky** | **147.2 tok/s** | Quote **PASS** through **25138** prompt tokens (ladder target **24576**) |
 
-Both speed figures are warm short-decode (~41 prompt tokens). Sticky’s ~25k is the quote test only — not the speed bench.
+Both speed figures are warm short-decode (**41** prompt tokens). Sticky’s **25138** is the quote test only — not the speed bench.
 
 ### What I expected vs what happened
 
@@ -350,7 +350,7 @@ Both speed figures are warm short-decode (~41 prompt tokens). Sticky’s ~25k is
 | Boots on WSL2 | Yes, after `max_split_size_mb:128`. |
 | Use case A invent-loop around 120 tok/s | Was 115.8 → **175.1** (stock CG) → **156.2** on the safe boot used after WSL recovery. |
 | Both use cases on one weight set | Yes. Shared **`CTX=long` 96k**; A n=7 / B n=15. Restart after env changes. |
-| Sticky quote inside a long prompt | Use case B on **`CTX=long` @ 96k** + n=15: quote OK **4k→24k**. Raising `KV_MEM` hard-reset WSL. |
+| Sticky quote inside a long prompt | Use case B on **`CTX=long` @ 96k** + n=15: quote OK through **25138** prompt tokens (targets 4k→24k). Raising `KV_MEM` hard-reset WSL. |
 | Useful context of at least 128k | **Not a stable WSL harness path.** Daily = int8 **96k @ 5.2e9** — validate that in OpenCode/Hermes next. |
 | Prefix cache helps agents | Yes. Large `cached_tokens`, and a much shorter second turn — the sticky half of B. |
 | C0 vs gpt-oss on the same 4090 | HyperQwen **14/24**. gpt-oss **20/24**. FreeToken wins the quiz. HyperQwen wins invent-loop decode speed. The speed gap is wider after the re-bench. |
@@ -374,7 +374,7 @@ Both speed figures are warm short-decode (~41 prompt tokens). Sticky’s ~25k is
 | `CTX=long` @ lab | **96k** (`MAX_LEN=98304`, `KV_MEM=5.2e9`) | int8 | **Shared A/B daily window — practical ceiling for harness testing.** |
 | `CTX=long` stock | 128–150k | int8 / fp8 | Not proven stable here (prefill/WSL headroom). |
 
-Sticky quote on the shared 96k window passed **4k→24k**. That is the baseline to stress in a real OpenCode/Hermes session — not “wait for 128k+.”
+Sticky quote on the shared 96k window passed through **25138** prompt tokens (ladder targets 4k→24k). That is the baseline to stress in a real OpenCode/Hermes session — not “wait for 128k+.”
 
 Optional check: `SPEC=mtp` and `CTX=long` gave a 150k window, warm short decode about **101.5 tok/s**, and 8k time-to-first-token about 3.4 s cold and about 0.65 s once cached (`exp_mtp_ctx_long.json`).
 
@@ -398,7 +398,7 @@ model    = hyperqwen/qwen3.8-27b       # ~/.config/opencode/opencode.json
 
 - Hermes one-shot returned **`PHASE7_OK`** (temporary `model.base_url` override, then put back).
 - Use case A invent-loop smoke (`fizzbuzz`) passed in about **0.64 s**.
-- Use case B sticky quote on **`CTX=long` @ 96k** passed **4k→24k** (see Results).
+- Use case B sticky quote on **`CTX=long` @ 96k** passed through **25138** prompt tokens (see Results).
 - **OpenCode 1.19.5 + oh-my-openagent** on Use case A built a playable **`~/LLM/web-tetris`** (`index.html`, `game.js`, `style.css`, `README.md`) with real tool calls (`write`, `edit`, `bash`).
 
 ### OpenCode on this server
@@ -442,7 +442,7 @@ opencode run --dir ~/LLM/web-tetris -m hyperqwen/qwen3.8-27b --auto "…"
 | `BIND=` ignored on the venv start script | Use **`HOST=127.0.0.1`**. |
 | Thinking fills `max_tokens` and `content` is null | `enable_thinking: false` for quizzes and for OpenCode/OmO (proxy on 18021). |
 | OpenCode: `length`, `reasoning=8192`, `output=0`, no tools | Thinking used the whole output cap. Turn thinking off and set **`output` to 32k**. |
-| Use case B sticky OOM / WSL hard reset | Card is 24 GB; Windows/WSLg already uses **1.2 GB**, so usable is **23 GB**. **Do not raise** `KV_MEM` above the profile default. On `CTX=long`, **lower** it (e.g. `4.0e9`) and cap `MAX_LEN`. Quote then passed **4k→24k**. |
+| Use case B sticky OOM / WSL hard reset | Card is 24 GB; Windows/WSLg already uses **1.2 GB**, so usable is **23 GB**. **Do not raise** `KV_MEM` above the profile default. On `CTX=long`, **lower** it (e.g. `4.0e9`) and cap `MAX_LEN`. Quote then passed through **25138** prompt tokens (targets 4k→24k). |
 | `VLLM_WSL2_ENABLE_PIN_MEMORY=1` fails Marlin load | Boot with **`pin_memory=0`** on this box for now. |
 | C0 wall-clock around 220–250 tok/s | Do not use that as the speed number. Layer B invent-loop re-test is **156.2** (safe boot); stock CG was **175.1**. |
 | FreeToken `--moe-cache-auto` on the 4090 | Out of memory. Pin moe and KV for the comparison. |
@@ -492,7 +492,7 @@ Use HyperQwen when the job is dense Qwen3.8-27B on one 24 GB card, an OpenAI-com
 
 ## Reflections
 
-On a 4090 with about 27 GB of system RAM, both use cases share a **96k** window (`MAX_LEN=98304`, `KV_MEM=5.2e9`) — the **real ceiling to stress in user/harness sessions** on this WSL box (still short of many 128k–200k+ clouds). Usable VRAM is about **23 GB** after Windows/WSLg (**1.2 GB**). At that window: **A invent 134 tok/s**, **B sticky 147 tok/s**, sticky quote through **24k**. Older A-on-`CTX=fast` 64k was faster (156–175) but too small for the harness goal. The A/B flip is draft length (n=7 vs n=15), not a second context size.
+On a 4090 with about 27 GB of system RAM, both use cases share a **96k** window (`MAX_LEN=98304`, `KV_MEM=5.2e9`) — the **real ceiling to stress in user/harness sessions** on this WSL box (still short of many 128k–200k+ clouds). Usable VRAM is about **23 GB** after Windows/WSLg (**1.2 GB**). At that window: **A invent 134.3 tok/s**, **B sticky 147.2 tok/s**, sticky quote through **25138** prompt tokens. Older A-on-`CTX=fast` 64k was faster (156–175) but too small for the harness goal. The A/B flip is draft length (n=7 vs n=15), not a second context size.
 
 The power-limit change does not explain the invent-loop speed jump vs early benches. A short generation sits around 285 W. The driver, the firmware, and the boot path are the likely reasons.
 
