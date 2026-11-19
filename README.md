@@ -125,7 +125,7 @@ The W4A16 quantization is a lossy compression of the weight numbers
 The difference between the vanilla model and the quantized model is measured by:
   1. Task scores: with [IFBench](https://github.com/allenai/IFBench), give the model a fixed quiz (math, follow instructions, etc.). Count how many it gets right. Compare full model vs 4-bit.
   2. Perplexity: with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = less surprised. If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
-  3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = ~0.6% 
+  3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = 0.6% 
 
 Docker is not installed in this WSL, so this is a normal Python venv and HyperQwen’s `docs/install.md`.
 
@@ -136,8 +136,8 @@ Docker is not installed in this WSL, so this is a normal Python venv and HyperQw
    `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False,max_split_size_mb:128`  
    `expandable_segments:False` alone runs out of memory during Marlin. `:True` dies while KV is starting.
 5. `bash single-user/start_qwen.sh` → `http://127.0.0.1:18020/v1` (name `qwen3.8-27b`).
-6. **Use case A (daily):** leave `DFLASH_TOKENS` unset (~7), **`CTX=long`**, `MAX_LEN=98304`, `KV_MEM=5.2e9` (shared ~96k).
-7. **Use case B (sticky):** same ~96k window; set `DFLASH_TOKENS=15` and restart for quote/edit.
+6. **Use case A (daily):** leave `DFLASH_TOKENS` unset (7), **`CTX=long`**, `MAX_LEN=98304`, `KV_MEM=5.2e9` (shared 96k).
+7. **Use case B (sticky):** same 96k window; set `DFLASH_TOKENS=15` and restart for quote/edit.
 
 ```bash
 cd ~/LLM/HyperQwen
@@ -149,7 +149,7 @@ bash single-user/start_qwen.sh
 curl -s -H "Authorization: Bearer $VLLM_API_KEY" http://127.0.0.1:18020/health
 ```
 
-VRAM holds weights, the drafter, and KV — on top of the ~**1.2 GB** Windows/WSLg already took. Leave the shipped `KV_MEM` alone on stock Use case A `-fast` unless you have measured a reason to change it. For Use case B on this WSL box, lower it so prefill still fits in the remaining ~**23 GB**. System RAM here is for the OS and for preparing weights. It is not an expert pool.
+VRAM holds weights, the drafter, and KV — on top of the **1.2 GB** Windows/WSLg already took. Leave the shipped `KV_MEM` alone on stock Use case A `-fast` unless you have measured a reason to change it. For Use case B on this WSL box, lower it so prefill still fits in the remaining **23 GB**. System RAM here is for the OS and for preparing weights. It is not an expert pool.
 
 For short quizzes and for agents, turn thinking off (`chat_template_kwargs.enable_thinking=false`). If thinking is on, the reply budget fills with reasoning and `content` comes back empty.
 
@@ -175,20 +175,20 @@ Cross-adventure **lab profiles A/B/C** (including personal auto-agent + host-RAM
 | **VRAM** | Memory on the GPU. The model has to live here to run quickly. | Card is **24 GB**, but under WSL + Windows display roughly **0.7–1.2 GB** is already used (WSLg / `Xwayland`). Usable for the server is about **22.8–23.3 GB**. |
 | **Dense 27B** | One model that runs every layer for every token. | Qwen3.8-27B. Different from [#4](https://github.com/Vince-0/AdventuresInAICoding4), where specialist layers sat in system RAM. |
 | **W4A16** | Weights stored in 4-bit. Math done in about 16-bit. | How 27B fits on one 4090. |
-| **[GPTQ](https://arxiv.org/abs/2210.17323)** | **G**enerative **P**re-trained **T**ransformer **Q**uantization: a calibration method that squeezes weights to W4A16 instead of only rounding each number. | How the DFlash2 drafter was shrunk (~3.85 GB BF16 → ~1.2 GB). The main 27B body used AutoRound instead. |
+| **[GPTQ](https://arxiv.org/abs/2210.17323)** | **G**enerative **P**re-trained **T**ransformer **Q**uantization: a calibration method that squeezes weights to W4A16 instead of only rounding each number. | How the DFlash2 drafter was shrunk (3.85 GB BF16 → 1.2 GB). The main 27B body used AutoRound instead. |
 | **KV cache** | Memory of what the model has already read in this chat. | Longer chats and bigger pasted docs use more of it, so less VRAM is left. |
 | **Prefill vs decode** | **Prefill** = first big read of the prompt (builds KV). **Decode** = write the reply one token at a time. | Fat `@file` / paste is mostly prefill (time + VRAM scratch). Chat snappiness is mostly decode tok/s. |
 | **Frozen vLLM + HyperQwen** | A known vLLM version, plus patches and scripts that were tested together. | Install, patch, prepare weights, `start_qwen.sh`. |
 | **Speculative decoding** | A small model guesses the next tokens. The big model accepts or rejects them. | [#3](https://github.com/Vince-0/AdventuresInAICoding3) used MTP for this. Here the guesser is DFlash2. |
 | **DFlash2** | The guesser proposes a block of tokens. The 27B model checks the block. | `SPEC=dflash2` for both practical use cases. |
-| **Use case A** | **Invent-loop** — pair programming / short agent turns. Reply is mostly **new** text. | Daily: shared **~96k** window (`CTX=long`, `MAX_LEN=98304`), HyperQwen Mode A (~7), port 18020. Roadmap **U-01** / lab profile **A**. |
-| **Use case B** | **Sticky** — repo `/plan`, fat `@file` / agent-read, in-context refactor. | **Same ~96k** window; flip `DFLASH_TOKENS=15` (+ lookup) for quote/edit. Lab profile **B**. |
+| **Use case A** | **Invent-loop** — pair programming / short agent turns. Reply is mostly **new** text. | Daily: shared **96k** window (`CTX=long`, `MAX_LEN=98304`), HyperQwen Mode A (7), port 18020. Roadmap **U-01** / lab profile **A**. |
+| **Use case B** | **Sticky** — repo `/plan`, fat `@file` / agent-read, in-context refactor. | **Same 96k** window; flip `DFLASH_TOKENS=15` (+ lookup) for quote/edit. Lab profile **B**. |
 | **Use case C** | **Personal auto-agent** — Hermes-class assistant + memory/tools (local “Grokbot-class”). | Host-RAM heavy (RAG/indexes); HyperQwen optional as brain. Roadmap **U-04** / lab profile **C** — not this adventure’s measured path yet. |
-| **HyperQwen Mode A / B** | Engine check length: ~7 (invent) vs ~15 (copy-from-prompt). | A detail under the use cases — not the adventure’s top-level split. |
+| **HyperQwen Mode A / B** | Engine check length: 7 (invent) vs 15 (copy-from-prompt). | A detail under the use cases — not the adventure’s top-level split. |
 | **Lookup drafting** | If the reply is mostly text already in the prompt, take those tokens from history. | Speed win inside Use case B when refactoring or quoting what is already in context. |
 | **Prefix cache** | Keep the KV for a prompt you will send again, so the next turn skips re-reading it. | First fat read is slow. Second turn on the same prefix is where agents feel fast. |
 | **`-fast` weights** | Extra repack of a few hot parts (output head and draft bits). | Used automatically when those files are present. |
-| **Context / KV** | How the server stores “what I’ve already read,” which sets how long a chat can be. | Daily: **`CTX=long` int8 KV**, **~96k** (`MAX_LEN=98304`, `KV_MEM=5.2e9`) — shared A/B window on this WSL box. |
+| **Context / KV** | How the server stores “what I’ve already read,” which sets how long a chat can be. | Daily: **`CTX=long` int8 KV**, **96k** (`MAX_LEN=98304`, `KV_MEM=5.2e9`) — shared A/B window on this WSL box. |
 | **Marlin repack** | At startup, rewrite the 4-bit weights into a layout the GPU kernels want. | Can run out of memory on WSL if the allocator setting is wrong. See Issues. |
 
 ---
@@ -209,10 +209,10 @@ flowchart TB
 
   subgraph weights["Model weights on GPU"]
     direction LR
-    E["embed_tokens<br/>~1.2 GB int8"]
-    B["W4A16 body<br/>~17 GB"]
-    H["lm_head<br/>~1.2 GB int8"]
-    D["DFlash2<br/>~1.2 GB"]
+    E["embed_tokens<br/>1.2 GB int8"]
+    B["W4A16 body<br/>17 GB"]
+    H["lm_head<br/>1.2 GB int8"]
+    D["DFlash2<br/>1.2 GB"]
   end
 
   KV["KV cache<br/>runtime"]
@@ -230,11 +230,11 @@ How to read it:
 | Piece | Approx. size | Role |
 |-------|--------------|------|
 | **Token IDs** | — | Your prompt, as numbers |
-| **`embed_tokens` int8** | **~1.2 GB** (was **~2.5 GB** BF16) | Front door: IDs → vectors |
-| **DFlash2** | **~1.2 GB** W4A16 | Side helper that guesses a short block; the body accepts or rejects (HyperQwen Mode A ~7 / Mode B ~15) |
-| **W4A16 body** | **~17 GB** | Almost all of the 27B layers, stored 4-bit (AutoRound) |
-| **KV cache** | runtime (~**5.2 GB** pin for daily ~96k) | Remembers this chat; daily path is **`CTX=long` int8** |
-| **`lm_head` int8** | **~1.2 GB** (was **~2.5 GB** BF16) | Back door: vectors → “which word next?” |
+| **`embed_tokens` int8** | **1.2 GB** (was **2.5 GB** BF16) | Front door: IDs → vectors |
+| **DFlash2** | **1.2 GB** W4A16 | Side helper that guesses a short block; the body accepts or rejects (HyperQwen Mode A 7 / Mode B 15) |
+| **W4A16 body** | **17 GB** | Almost all of the 27B layers, stored 4-bit (AutoRound) |
+| **KV cache** | runtime (**5.2 GB** pin for daily 96k) | Remembers this chat; daily path is **`CTX=long` int8** |
+| **`lm_head` int8** | **1.2 GB** (was **2.5 GB** BF16) | Back door: vectors → “which word next?” |
 | **Next token** | — | Final scores → the word that gets emitted |
 
 ---
@@ -259,14 +259,14 @@ More detail: [drafter/README.md](https://github.com/syv-ai/HyperQwen/blob/main/d
   1. Download an already 4-bit Qwen (the public W4A16 AutoRound / compressed-tensors build). Most of the 27B body is already small enough for 24 GB.
 
   2. That public file still wastes VRAM, so prepare/ rewrites a few leftover full-size pieces once, on the CPU, in place:
-    • lm_head (output layer) → int8 (~1.3 GB saved)
-    • embed_tokens (input embeddings) → int8 (~1.3 GB saved)
+    • lm_head (output layer) → int8 (1.3 GB saved)
+    • embed_tokens (input embeddings) → int8 (1.3 GB saved)
     • mtp.* (built-in draft module, if present) → int8
 
-  3. Build a smaller draft vocabulary — a ~41k-row slice of the output head so a draft model doesn’t score the full ~248k vocab every guess.
+  3. Build a smaller draft vocabulary — a 41k-row slice of the output head so a draft model doesn’t score the full 248k vocab every guess.
 
   4. Optional downloads for speed:
-    • -fast — further-tweaked head/draft bits (~15% faster in single-user mode)
+    • -fast — further-tweaked head/draft bits (15% faster in single-user mode)
     • DFlash2 — the separate small block-guesser HyperQwen uses 
 
 #### DFlash2 vs MTP
@@ -275,11 +275,11 @@ Same idea (guess → big model checks), different guesser.
 
 | | **MTP** | **DFlash2** |
 |---|---------|-------------|
-| **What guesses** | Small **heads baked into** Qwen3.8 (`nextn`) | **Separate** ~1.9B draft model |
+| **What guesses** | Small **heads baked into** Qwen3.8 (`nextn`) | **Separate** 1.9B draft model |
 | **How it guesses** | Predicts the next few tokens from those heads | **Block** draft (diffusion-style); proposes a short phrase |
-| **Extra files** | Often already in the checkpoint / GGUF | Extra ~1.2 GB W4A16 drafter on GPU |
+| **Extra files** | Often already in the checkpoint / GGUF | Extra 1.2 GB W4A16 drafter on GPU |
 | **Typical home** | llama.cpp `draft-mtp`; HyperQwen `SPEC=mtp` | HyperQwen `SPEC=dflash2` (this adventure’s daily) |
-| **On this box** | ~101 tok/s (HyperQwen MTP) / ~70–85 (llama.cpp cite) | ~134–147 tok/s invent/sticky @ 96k |
+| **On this box** | 101 tok/s (HyperQwen MTP) / 70–85 (llama.cpp cite) | 134–147 tok/s invent/sticky @ 96k |
 
 **ELI5:** MTP = the model’s **built-in mini-crystal-ball**. DFlash2 = a **sidekick model** that blurts a whole short guess for the big model to mark right/wrong. Both save full-model steps when guesses land; DFlash2 is what HyperQwen tuned for the invent/sticky split here.
 
@@ -289,30 +289,30 @@ Same idea (guess → big model checks), different guesser.
 
 Full trio + host-RAM table for framework testing: [`03_ROADMAP.md` — Lab profiles](../03_ROADMAP.md#lab-profiles--use-case-vs-implementation). **C** (personal auto-agent) is roadmap **U-04**, not measured in this HyperQwen write-up.
 
-HyperQwen’s Mode A / Mode B are only a **check-length** switch (~7 invent vs ~15 copy-from-prompt). For this adventure the measured split is:
+HyperQwen’s Mode A / Mode B are only a **check-length** switch (7 invent vs 15 copy-from-prompt). For this adventure the measured split is:
 
 | | **Use case A — invent-loop** | **Use case B — sticky** |
 |--|------------------------------|---------------------------|
 | **Job** | Pair programming, short OpenCode/OmO turns | Repo `/plan`, fat file reads, in-context refactor |
 | **What the reply does** | Mostly **new** text (answer, write code, tool calls) | Holds a **fat prompt** and plans or edits against it |
-| **Context (shared)** | **~96k** — `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9` (pool ~100k) | **Same ~96k** settings |
-| **DFlash check** | HyperQwen Mode A (~7) | Mode B (~15) + lookup when quoting/editing; plan/synthesize can stay ~7 |
+| **Context (shared)** | **96k** — `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9` (pool 100k) | **Same 96k** settings |
+| **DFlash check** | HyperQwen Mode A (7) | Mode B (15) + lookup when quoting/editing; plan/synthesize can stay 7 |
 | **Prefix cache** | On — cheap follow-up edits | On — second turn after the slow first read |
 | **Decode (warm median)** | **134.3 tok/s** (`rebench_usecase_a_96k_invent.json`) | **147.2 tok/s** (`rebench_usecase_b_96k_decode.json`) |
 | **What I measure** | Decode tok/s, C0 quiz, agent smoke | Sticky quote **4k→24k**; `cached_tokens` on turn 2 |
 
-Long document writing from a short brief stays closer to **A** (invent + long output). RAG is usually **B-sized context** (chunks in the prompt); flip to Mode B (~15) only when the answer must quote the chunks.
+Long document writing from a short brief stays closer to **A** (invent + long output). RAG is usually **B-sized context** (chunks in the prompt); flip to Mode B (15) only when the answer must quote the chunks.
 
-How much context the server can hold is the `CTX` / `MAX_LEN` / `KV_MEM` knobs. On this WSL box the **usable** ceiling is **~96k** with **int8** KV (`CTX=long`) — not whatever a stock profile advertises.
+How much context the server can hold is the `CTX` / `MAX_LEN` / `KV_MEM` knobs. On this WSL box the **usable** ceiling is **96k** with **int8** KV (`CTX=long`) — not whatever a stock profile advertises.
 
-**Shared ~96k boot (both use cases):**
+**Shared 96k boot (both use cases):**
 
 | Switch | Value | Meaning |
 |--------|-------|---------|
 | `SPEC` | `dflash2` | DFlash2 block guesser |
-| `CTX` | `long` | int8 KV path (needed for ~96k on ~23 GB usable) |
-| `MAX_LEN` | `98304` | ~**96k** context window |
-| `KV_MEM` | `5200000000` | ~5.2 GB pin (pool ~100k). Do not overshoot — 6.2e9 hard-reset WSL |
+| `CTX` | `long` | int8 KV path (needed for 96k on 23 GB usable) |
+| `MAX_LEN` | `98304` | **96k** context window |
+| `KV_MEM` | `5200000000` | 5.2 GB pin (pool 100k). Do not overshoot — 6.2e9 hard-reset WSL |
 | `PREFIX_CACHE` | `1` | Reuse KV across turns |
 | `VLLM_WSL2_ENABLE_PIN_MEMORY` | `0` | Pin=1 OOMs Marlin on current boots |
 | `HOST` / `PORT` | `127.0.0.1` / `18020` | Local API |
@@ -324,7 +324,7 @@ How much context the server can hold is the `CTX` / `MAX_LEN` / `KV_MEM` knobs. 
 
 | Use case | Change |
 |----------|--------|
-| **A invent-loop (daily)** | Leave `DFLASH_TOKENS` unset (~7) |
+| **A invent-loop (daily)** | Leave `DFLASH_TOKENS` unset (7) |
 | **B sticky quote/edit** | `DFLASH_TOKENS=15`, restart |
 
 Lookup drafting stays on HyperQwen’s usual DFlash2 default unless you turn `LOOKUP` off for debugging.
@@ -333,17 +333,17 @@ Lookup drafting stays on HyperQwen’s usual DFlash2 default unless you turn `LO
 
 ### How the pieces fit
 
-1. **More than two things share the GPU.** Under WSL, Windows/WSLg display already uses about **1.2 GB**. The rest is for weights, the drafter, KV, and short-lived prefill scratch. Budget against ~**23 GB** usable, not the sticker **24 GB**. A longer chat does not make the weight file bigger; it grows the KV until that usable pool is full.
+1. **More than two things share the GPU.** Under WSL, Windows/WSLg display already uses about **1.2 GB**. The rest is for weights, the drafter, KV, and short-lived prefill scratch. Budget against **23 GB** usable, not the sticker **24 GB**. A longer chat does not make the weight file bigger; it grows the KV until that usable pool is full.
 
 2. **Guess, then check.** DFlash2 proposes a short phrase. The 27B model marks which tokens are right. When the guesses are often right, the reply finishes in fewer full-model steps.
 
-3. **Same weights, same ~96k window, two jobs.** A and B share `CTX=long` + `MAX_LEN=98304`. HyperQwen Mode A/B only changes draft check length (~7 invent vs ~15 copy).
+3. **Same weights, same 96k window, two jobs.** A and B share `CTX=long` + `MAX_LEN=98304`. HyperQwen Mode A/B only changes draft check length (7 invent vs 15 copy).
 
 4. **Copying from the prompt is cheaper than inventing.** Lookup fills guesses from text already in the prompt. The prefix cache reuses KV for the shared front of the prompt. The first read of a long doc is still slow. The next turn on that same doc is where an agent feels fast.
 
-5. **Prefill is the cliff.** Reading a fat prompt builds KV and needs spare VRAM; that is where WSL/DWM dies, not “decode tok/s.” Daily stays **int8 ~96k** (`KV_MEM=5.2e9`).
+5. **Prefill is the cliff.** Reading a fat prompt builds KV and needs spare VRAM; that is where WSL/DWM dies, not “decode tok/s.” Daily stays **int8 96k** (`KV_MEM=5.2e9`).
 
-6. **Two ways this recipe shrinks memory.** W4A16 shrinks the weights. `-fast` repacks a few hot parts. The KV path here is plain **int8** at ~96k — keep headroom for prefill.
+6. **Two ways this recipe shrinks memory.** W4A16 shrinks the weights. `-fast` repacks a few hot parts. The KV path here is plain **int8** at 96k — keep headroom for prefill.
 
 ---
 
@@ -353,8 +353,8 @@ People usually ask one question: how many tokens per second? That misses this wr
 
 **What we hold fixed** (biggest stable usable context on this WSL box):
 
-- **int8 KV** at **~96k** — `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9`
-- Same weights for both jobs: **invent-loop (A)** and **sticky (B)** on that **shared ~96k** window (only draft check length changes: ~7 vs ~15)
+- **int8 KV** at **96k** — `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9`
+- Same weights for both jobs: **invent-loop (A)** and **sticky (B)** on that **shared 96k** window (only draft check length changes: 7 vs 15)
 
 Three scores. They answer different questions.
 
@@ -366,7 +366,7 @@ Three scores. They answer different questions.
 
 Logs are under `~/LLM/HyperQwen/bench-results/` — fresh: `rebench_usecase_a_invent_loop_ctx_fast.json`, `c0_usecase_a_invent_loop.json`, `c3_c4_usecase_b_sticky_long.json`. Older: `c1_mode_a_*.jsonl`, `c0_mode_a*.json`, `exp_mode_b_ctx_huge.json`, `rebench_mode_a_ctx_fast_pl450_stock.json`.
 
-`ran_here` means this 4090 under WSL. `cited_other_hw` means a number from upstream docs or another card (including ~381 tok/s on copy-from-prompt jobs, which is not an invent-loop number).
+`ran_here` means this 4090 under WSL. `cited_other_hw` means a number from upstream docs or another card (including 381 tok/s on copy-from-prompt jobs, which is not an invent-loop number).
 
 ### Use case A and Use case B
 
@@ -374,19 +374,19 @@ Log filenames still say `mode_a` / `mode_b` (HyperQwen’s check-length names). 
 
 | Role | Config | Speed / sticky | Quiz | Takeaway |
 |------|--------|----------------|------|----------|
-| **Use case A @ 96k (current daily)** | Invent: n=7, `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9`, pin=0 | Warm median **134.3 tok/s** (`rebench_usecase_a_96k_invent.json`) | C0 **14/24** (`c0_usecase_a_96k.json`) | Same window as B. Trades some tok/s vs old `CTX=fast` ~64k (**156**) for usable context. |
-| **Use case B @ 96k** | Sticky: n=15, **same** `MAX_LEN` / `KV_MEM` | Warm median **147.2 tok/s**; quote **PASS 4k→24k** (`rebench_usecase_b_96k_decode.json`, `c3_c4_usecase_b_sticky_96k.json`) | Quote passed | Same ~96k window; only draft length changes. |
-| **Use case A @ ~64k `CTX=fast`** (earlier) | n=7, bf16 KV | **156.2** safe / **175.1** stock CG | C0 **14/24** | Faster decode, smaller window. Kept as history. |
-| Upstream (other hardware) | 3090 / docs | ~127 chat / ~381 reproduce | — | `cited_other_hw`. 381 is a copy-from-prompt figure, not invent-loop chat. |
+| **Use case A @ 96k (current daily)** | Invent: n=7, `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9`, pin=0 | Warm median **134.3 tok/s** (`rebench_usecase_a_96k_invent.json`) | C0 **14/24** (`c0_usecase_a_96k.json`) | Same window as B. Trades some tok/s vs old `CTX=fast` 64k (**156**) for usable context. |
+| **Use case B @ 96k** | Sticky: n=15, **same** `MAX_LEN` / `KV_MEM` | Warm median **147.2 tok/s**; quote **PASS 4k→24k** (`rebench_usecase_b_96k_decode.json`, `c3_c4_usecase_b_sticky_96k.json`) | Quote passed | Same 96k window; only draft length changes. |
+| **Use case A @ 64k `CTX=fast`** (earlier) | n=7, bf16 KV | **156.2** safe / **175.1** stock CG | C0 **14/24** | Faster decode, smaller window. Kept as history. |
+| Upstream (other hardware) | 3090 / docs | 127 chat / 381 reproduce | — | `cited_other_hw`. 381 is a copy-from-prompt figure, not invent-loop chat. |
 
 ### Other servers on this machine
 
 | Stack | Speed | C0 | Compared with HyperQwen |
 |-------|-------|----|-------------------------|
-| **HyperQwen use case A @ 96k** (4090) | **~134 tok/s** | **14/24** | Daily invent-loop, shared ~96k with B. Older `CTX=fast` ~64k was ~156–175. |
-| gpt-oss FreeToken (4090 re-bench) | **~54.7 tok/s** | **20/24** | Higher quiz score. MoE offload. Auto cache size OOMed on 24 GB. |
-| gpt-oss FreeToken (3080, #4) | ~45.5 tok/s | 19/24 | Same recipe, previous card. |
-| Qwen3.5-4B-MTP (#3 class) | ~130–148 tok/s | ~5–8/28 | Fast small model. Weaker quiz. |
+| **HyperQwen use case A @ 96k** (4090) | **134 tok/s** | **14/24** | Daily invent-loop, shared 96k with B. Older `CTX=fast` 64k was 156–175. |
+| gpt-oss FreeToken (4090 re-bench) | **54.7 tok/s** | **20/24** | Higher quiz score. MoE offload. Auto cache size OOMed on 24 GB. |
+| gpt-oss FreeToken (3080, #4) | 45.5 tok/s | 19/24 | Same recipe, previous card. |
+| Qwen3.5-4B-MTP (#3 class) | 130–148 tok/s | 5–8/28 | Fast small model. Weaker quiz. |
 
 **4090 gpt-oss:** `--moe-cache-auto` alone OOMed. The speed run used **moe=316 / kv≈4125**. Notes in `FreeToken/bench-results/compare_3080_vs_4090_gpt-oss.md`.
 
@@ -396,12 +396,12 @@ Log filenames still say `mode_a` / `mode_b` (HyperQwen’s check-length names). 
 |-------------|----------------|
 | Boots on WSL2 | Yes, after `max_split_size_mb:128`. |
 | Use case A invent-loop around 120 tok/s | Was 115.8 → **175.1** (stock CG) → **156.2** on the safe boot used after WSL recovery. |
-| Both use cases on one weight set | Yes. Shared **`CTX=long` ~96k**; A n=7 / B n=15. Restart after env changes. |
+| Both use cases on one weight set | Yes. Shared **`CTX=long` 96k**; A n=7 / B n=15. Restart after env changes. |
 | Sticky quote inside a long prompt | Use case B on **`CTX=long` @ 96k** + n=15: quote OK **4k→24k**. Raising `KV_MEM` hard-reset WSL. |
-| Useful context of at least 128k | **Not a stable WSL harness path.** Daily = int8 **~96k @ 5.2e9** — validate that in OpenCode/Hermes next. |
+| Useful context of at least 128k | **Not a stable WSL harness path.** Daily = int8 **96k @ 5.2e9** — validate that in OpenCode/Hermes next. |
 | Prefix cache helps agents | Yes. Large `cached_tokens`, and a much shorter second turn — the sticky half of B. |
 | C0 vs gpt-oss on the same 4090 | HyperQwen **14/24**. gpt-oss **20/24**. FreeToken wins the quiz. HyperQwen wins invent-loop decode speed. The speed gap is wider after the re-bench. |
-| Upstream ~381 tok/s as an invent-loop number | No. That figure is copy-from-prompt / reproduce-only. |
+| Upstream 381 tok/s as an invent-loop number | No. That figure is copy-from-prompt / reproduce-only. |
 | Power limit 90% → 100% explains the +51% | No. Short decode sits around 285 W, under both 405 W and 450 W. The gain lines up with the driver/firmware update and a quieter boot. |
 
 ### What I leave running
@@ -417,9 +417,9 @@ Log filenames still say `mode_a` / `mode_b` (HyperQwen’s check-length names). 
 
 | Profile | Rough window | KV | When I use it |
 |---------|--------------|----|----------------|
-| `CTX=fast` | ~64k | bf16 | Older faster invent-loop; retired as daily. |
-| `CTX=long` @ lab | **~96k** (`MAX_LEN=98304`, `KV_MEM=5.2e9`) | int8 | **Shared A/B daily window — practical ceiling for harness testing.** |
-| `CTX=long` stock | ~128–150k | int8 / fp8 | Not proven stable here (prefill/WSL headroom). |
+| `CTX=fast` | 64k | bf16 | Older faster invent-loop; retired as daily. |
+| `CTX=long` @ lab | **96k** (`MAX_LEN=98304`, `KV_MEM=5.2e9`) | int8 | **Shared A/B daily window — practical ceiling for harness testing.** |
+| `CTX=long` stock | 128–150k | int8 / fp8 | Not proven stable here (prefill/WSL headroom). |
 
 Sticky quote on the shared 96k window passed **4k→24k**. That is the baseline to stress in a real OpenCode/Hermes session — not “wait for 128k+.”
 
@@ -450,7 +450,7 @@ model    = hyperqwen/qwen3.8-27b       # ~/.config/opencode/opencode.json
 
 ### OpenCode on this server
 
-I wanted HyperQwen behind an OpenCode-style agent: plan, tools, files. Invent-loop tok/s alone does not show whether that loop works. The Tetris run is **Use case A**. A sizeable-repo `/plan` is **Use case B** on the **same ~96k** window (raise OpenCode `context` toward 96k).
+I wanted HyperQwen behind an OpenCode-style agent: plan, tools, files. Invent-loop tok/s alone does not show whether that loop works. The Tetris run is **Use case A**. A sizeable-repo `/plan` is **Use case B** on the **same 96k** window (raise OpenCode `context` toward 96k).
 
 What ran:
 
@@ -465,9 +465,9 @@ What ran:
 What I learned:
 
 1. **Thinking ate the tool budget.** With thinking on and `limit.output: 8192`, a Tetris step finished with `finish_reason=length`, about **8192 reasoning tokens**, **0 output tokens**, and **no tool calls**. The same prompt with thinking off called tools right away. For an agent loop, turn thinking off, or give reasoning a budget large enough that tools still fit.
-2. **8192 was an OpenCode limit, not a HyperQwen limit.** Cursor’s docs talk about a large context (often ~200k and up). The models behind Cursor often allow tens of thousands of output tokens per step. Use case A’s window here is 65k total. A practical output cap is **16k–32k** (I use **32768**), so the prompt, tools, and history still fit. Later steps were often already **20k–40k** of input. Do not set the output cap equal to `max_model_len`.
+2. **8192 was an OpenCode limit, not a HyperQwen limit.** Cursor’s docs talk about a large context (often 200k and up). The models behind Cursor often allow tens of thousands of output tokens per step. Use case A’s window here is 65k total. A practical output cap is **16k–32k** (I use **32768**), so the prompt, tools, and history still fit. Later steps were often already **20k–40k** of input. Do not set the output cap equal to `max_model_len`.
 3. **Tool calling works.** HyperQwen’s `qwen3_coder` path, through OpenCode’s OpenAI-compatible client, did multi-step `write` / `edit` / `bash`. Try a one-file write before a large job.
-4. **The prefix cache matters.** Later agent turns showed a large **`cache.read`**. `CTX=fast` (65k) was enough for a small web game. A bigger repo is Use case B on **~96k `CTX=long`** — test whether that ceiling is enough in a real session.
+4. **The prefix cache matters.** Later agent turns showed a large **`cache.read`**. `CTX=fast` (65k) was enough for a small web game. A bigger repo is Use case B on **96k `CTX=long`** — test whether that ceiling is enough in a real session.
 5. **How I run it.** Port 18020 for invent-loop chat and short tests. Port 18021 (the proxy) for OpenCode/OmO. `--auto` for unattended runs. Keep HyperQwen concurrency at **1** on this 4090.
 
 ```bash
@@ -489,23 +489,23 @@ opencode run --dir ~/LLM/web-tetris -m hyperqwen/qwen3.8-27b --auto "…"
 | `BIND=` ignored on the venv start script | Use **`HOST=127.0.0.1`**. |
 | Thinking fills `max_tokens` and `content` is null | `enable_thinking: false` for quizzes and for OpenCode/OmO (proxy on 18021). |
 | OpenCode: `length`, `reasoning=8192`, `output=0`, no tools | Thinking used the whole output cap. Turn thinking off and set **`output` to 32k**. |
-| Use case B sticky OOM / WSL hard reset | Card is 24 GB; Windows/WSLg already uses ~**1.2 GB**, so usable is ~**23 GB**. **Do not raise** `KV_MEM` above the profile default. On `CTX=long`, **lower** it (e.g. `4.0e9`) and cap `MAX_LEN`. Quote then passed **4k→24k**. |
+| Use case B sticky OOM / WSL hard reset | Card is 24 GB; Windows/WSLg already uses **1.2 GB**, so usable is **23 GB**. **Do not raise** `KV_MEM` above the profile default. On `CTX=long`, **lower** it (e.g. `4.0e9`) and cap `MAX_LEN`. Quote then passed **4k→24k**. |
 | `VLLM_WSL2_ENABLE_PIN_MEMORY=1` fails Marlin load | Boot with **`pin_memory=0`** on this box for now. |
 | C0 wall-clock around 220–250 tok/s | Do not use that as the speed number. Layer B invent-loop re-test is **156.2** (safe boot); stock CG was **175.1**. |
 | FreeToken `--moe-cache-auto` on the 4090 | Out of memory. Pin moe and KV for the comparison. |
 | Abliterated W4A16 as a drop-in (leminkozey) | Heavier than `-fast`. DFlash/MTP unpack OOMs or hard-crashes WSL. Not an invent-loop substitute unless you run `SPEC=off` and a smaller KV. |
 | A VRAM OOM sometimes kills the whole WSL distro | Same cliff as a CUDA OOM. Leave headroom. |
 | Cold compile plus stock graphs at 450 W reset WSL twice | Quiet boot (don’t spam `nvidia-smi`). Let the torch.compile cache warm. Then a stock full graph, CG=64, boots cleanly. |
-| Fat context / prefill beyond ~96k | WSL/DWM risk. Stay on **`CTX=long` ~96k @ 5.2e9**; don’t raise `KV_MEM` to “buy” more window. |
+| Fat context / prefill beyond 96k | WSL/DWM risk. Stay on **`CTX=long` 96k @ 5.2e9**; don’t raise `KV_MEM` to “buy” more window. |
 
 ---
 
 ## Lessons
 
-1. **Use case A and Use case B are two jobs on one server.** Shared **`CTX=long` ~96k**; A is invent (n=7), B is sticky (n=15 when copying the prompt). The upstream ~381 tok/s figure is copy-from-prompt, not invent-loop.
-2. **The useful part is the recipe.** Pinned vLLM 0.32.0, the patch set, `-fast` weights, DFlash2, and **int8 ~96k**. A checkpoint by itself is not that.
-3. **Lookup and the prefix cache are what make sticky agents feel fast.** Mode B (~15) helps when the answer reuses the prompt. The prefix cache makes the second turn cheap after the slow first read.
-4. **Daily = int8 ~96k @ 5.2e9.** That is the biggest stable usable window here. Fat prefills past it can still WSL-reset or **DWM**-crash the desktop. Next: real harness at 96k.
+1. **Use case A and Use case B are two jobs on one server.** Shared **`CTX=long` 96k**; A is invent (n=7), B is sticky (n=15 when copying the prompt). The upstream 381 tok/s figure is copy-from-prompt, not invent-loop.
+2. **The useful part is the recipe.** Pinned vLLM 0.32.0, the patch set, `-fast` weights, DFlash2, and **int8 96k**. A checkpoint by itself is not that.
+3. **Lookup and the prefix cache are what make sticky agents feel fast.** Mode B (15) helps when the answer reuses the prompt. The prefix cache makes the second turn cheap after the slow first read.
+4. **Daily = int8 96k @ 5.2e9.** That is the biggest stable usable window here. Fat prefills past it can still WSL-reset or **DWM**-crash the desktop. Next: real harness at 96k.
 5. **Quiz score, speed, and context are separate.** Use case A is faster than gpt-oss on this 4090 and loses the quiz (14 vs 20 out of 24). Pick the server for the job.
 6. **The WSL allocator setting is part of the install.** `max_split_size_mb:128` was required on driver 610.x.
 7. **A different weight file can blow the VRAM budget.** An abliterated AutoRound build without `-fast` used the room DFlash needs. Stock HyperQwen use case A stays the daily invent-loop server.
@@ -518,14 +518,14 @@ opencode run --dir ~/LLM/web-tetris -m hyperqwen/qwen3.8-27b --auto "…"
 | Version | You track upstream and patch yourself | vLLM **0.32.0** plus a tested patch set |
 | Weights | You bring a quant | A **W4A16** path, **`-fast`**, and a **DFlash2** prepare script |
 | Speculation | Optional, several drafters | **DFlash2**, with HyperQwen Mode A/B as the check length under each job |
-| Long context | You pick KV dtype and length | **`CTX=long` int8 ~96k** is the shared A/B window here |
+| Long context | You pick KV dtype and length | **`CTX=long` int8 96k** is the shared A/B window here |
 | WSL | Whatever you find in issues | Pin-memory flag and the allocator setting above |
 
 ### When llama.cpp is the better tool
 
 Use llama.cpp for the GGUF ecosystem, for MTP on small models, or for abliterated GGUF trials (see the lab watchlist, M-01, with a 128k gate).
 
-Use HyperQwen when the job is dense Qwen3.8-27B on one 24 GB card, an OpenAI-compatible API, **Use case A** invent-loop and **Use case B** sticky on a shared **~96k** window — then validate that ceiling in the harness before assuming cloud-sized context.
+Use HyperQwen when the job is dense Qwen3.8-27B on one 24 GB card, an OpenAI-compatible API, **Use case A** invent-loop and **Use case B** sticky on a shared **96k** window — then validate that ceiling in the harness before assuming cloud-sized context.
 
 ### What I actually do
 
@@ -539,7 +539,7 @@ Use HyperQwen when the job is dense Qwen3.8-27B on one 24 GB card, an OpenAI-com
 
 ## Reflections
 
-On a 4090 with about 27 GB of system RAM, both use cases share a **96k** window (`MAX_LEN=98304`, `KV_MEM=5.2e9`) — the **real ceiling to stress in user/harness sessions** on this WSL box (still short of many 128k–200k+ clouds). Usable VRAM is about **23 GB** after Windows/WSLg (**1.2 GB**). At that window: **A invent ~134 tok/s**, **B sticky ~147 tok/s**, sticky quote through **24k**. Older A-on-`CTX=fast` 64k was faster (156–175) but too small for the harness goal. The A/B flip is draft length (n=7 vs n=15), not a second context size.
+On a 4090 with about 27 GB of system RAM, both use cases share a **96k** window (`MAX_LEN=98304`, `KV_MEM=5.2e9`) — the **real ceiling to stress in user/harness sessions** on this WSL box (still short of many 128k–200k+ clouds). Usable VRAM is about **23 GB** after Windows/WSLg (**1.2 GB**). At that window: **A invent 134 tok/s**, **B sticky 147 tok/s**, sticky quote through **24k**. Older A-on-`CTX=fast` 64k was faster (156–175) but too small for the harness goal. The A/B flip is draft length (n=7 vs n=15), not a second context size.
 
 The power-limit change does not explain the invent-loop speed jump vs early benches. A short generation sits around 285 W. The driver, the firmware, and the boot path are the likely reasons.
 
@@ -567,7 +567,7 @@ HyperQwen already wins that fight on this box: invent **134** / sticky **147** t
 
 | | HyperQwen (this adventure) | llama.cpp MTP (`06`) |
 |---|---|---|
-| Bottleneck found | Usable sticky **96k** under WSL; denser KVarN didn’t buy a safe bigger window | Claim: **q4_0 KV** + lighter **Q4_K_M** (~16–17 GB) → try **>96k** |
+| Bottleneck found | Usable sticky **96k** under WSL; denser KVarN didn’t buy a safe bigger window | Claim: **q4_0 KV** + lighter **Q4_K_M** (16–17 GB) → try **>96k** |
 | Decode | Already good | Expected **worse** — not the goal |
 | Question | “Can dense 27B run well here?” → **yes @ 96k** | “Can this box hold a **bigger** window than HyperQwen’s ceiling?” |
 
