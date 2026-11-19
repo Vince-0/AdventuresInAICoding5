@@ -336,10 +336,10 @@ People usually ask one question: how many tokens per second? That misses this wr
 | **Invent** | Use case A small correct Python | Fixed prompts, extract code, run checks, passed/total. |
 | **Sticky** | Use case B large-context sticky quote a marker in a fat prompt, prefix cache on turn 2 | Pass/fail quote on 4k–24k under `CTX=long` |
 
-| Role | Speed | Quiz | Takeaway |
+| Role | Speed | Test | Prompt size |
 |------|-------|------|----------|
-| **Invent** | **134.3 tok/s** | Pass **14/24** tests | Same context size as B. |
-| **Sticky** | **147.2 tok/s** | Quote passed **4k→24k** prompt | Same 96k window; only draft length changes. |
+| **Invent** | **134.3 tok/s** | Pass **14/24** tests | 40 tokens |
+| **Sticky** | **147.2 tok/s** | Quote passed up to 24k prompt | 25k tokens |
 
 ### What I expected vs what happened
 
