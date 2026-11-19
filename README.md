@@ -341,14 +341,13 @@ People usually ask one question: how many tokens per second? That misses this wr
 | **Invent** | **134.3 tok/s** | Pass **14/24** tests |
 | **Sticky** | **147.2 tok/s** | Quote **PASS** < 25k prompt tokens |
 
-
-### What I leave running
-
 ---
 
 ## Agents (Hermes, OpenCode, OmO)
 
-Same pattern as earlier adventures: a local OpenAI-compatible server, plus a harness in front of it. This time the harness can plan, call tools, and write files.
+Same pattern as earlier adventures: a local OpenAI-compatible server, plus a harness in front of it. 
+
+This time the harness can plan, call tools, and write files.
 
 ```text
 # Direct API, Hermes, short tests
@@ -369,7 +368,9 @@ model    = hyperqwen/qwen3.8-27b       # ~/.config/opencode/opencode.json
 
 ### OpenCode on this server
 
-I wanted HyperQwen behind an OpenCode-style agent: plan, tools, files. Invent-loop tok/s alone does not show whether that loop works. The Tetris run is **Use case A**. A sizeable-repo `/plan` is **Use case B** on the **same 96k** window (raise OpenCode `context` toward 96k).
+I wanted HyperQwen behind an OpenCode-style agent: plan, tools, files. Invent-loop tok/s alone does not show whether that loop works. 
+
+The Tetris run is **Use case A**. A sizeable-repo `/plan` is **Use case B** on the **same 96k** window (raise OpenCode `context` toward 96k).
 
 What ran:
 
@@ -384,7 +385,7 @@ What ran:
 What I learned:
 
 1. **Thinking ate the tool budget.** With thinking on and `limit.output: 8192`, a Tetris step finished with `finish_reason=length`, about **8192 reasoning tokens**, **0 output tokens**, and **no tool calls**. The same prompt with thinking off called tools right away. For an agent loop, turn thinking off, or give reasoning a budget large enough that tools still fit.
-2. **8192 was an OpenCode limit, not a HyperQwen limit.** Cursor’s docs talk about a large context (often 200k and up). The models behind Cursor often allow tens of thousands of output tokens per step. Use case A’s window here is 65k total. A practical output cap is **16k–32k** (I use **32768**), so the prompt, tools, and history still fit. Later steps were often already **20k–40k** of input. Do not set the output cap equal to `max_model_len`.
+2. **8192 was an OpenCode limit, not a HyperQwen limit.**. Use case A’s window here is 65k total. A practical output cap is **16k–32k** (I use **32768**), so the prompt, tools, and history still fit. Later steps were often already **20k–40k** of input. Do not set the output cap equal to `max_model_len`.
 3. **Tool calling works.** HyperQwen’s `qwen3_coder` path, through OpenCode’s OpenAI-compatible client, did multi-step `write` / `edit` / `bash`. Try a one-file write before a large job.
 4. **The prefix cache matters.** Later agent turns showed a large **`cache.read`**. `CTX=fast` (65k) was enough for a small web game. A bigger repo is Use case B on **96k `CTX=long`** — test whether that ceiling is enough in a real session.
 5. **How I run it.** Port 18020 for invent-loop chat and short tests. Port 18021 (the proxy) for OpenCode/OmO. `--auto` for unattended runs. Keep HyperQwen concurrency at **1** on this 4090.
@@ -442,52 +443,20 @@ opencode run --dir ~/LLM/web-tetris -m hyperqwen/qwen3.8-27b --auto "…"
 
 ### When llama.cpp is the better tool
 
-Use llama.cpp for the GGUF ecosystem, for MTP on small models, or for abliterated GGUF trials (see the lab watchlist, M-01, with a 128k gate).
+Use llama.cpp for the GGUF ecosystem, for MTP on small models, or for abliterated GGUF trials.
 
-Use HyperQwen when the job is dense Qwen3.8-27B on one 24 GB card, an OpenAI-compatible API, **Use case A** invent-loop and **Use case B** sticky on a shared **96k** window — then validate that ceiling in the harness before assuming cloud-sized context.
+Use HyperQwen when the job is dense Qwen3.8-27B on one 24 GB card, an OpenAI-compatible API.
 
-### What I actually do
+### What I'd use
 
-- Leave **Use case A @ 96k** (n=7, shared long window) on port 18020 for daily invent-loop.
+- Leave **Use case A @ 96k** for daily invent-loop.
 - For **OpenCode / OmO**, use the thinking-off proxy on **port 18021** and **`limit.output: 32768`** (raise OpenCode `context` toward 96k when the client allows).
-- Flip to **Use case B** with `DFLASH_TOKENS=15` (same 96k window) for sticky quote/refactor.
-- Keep **gpt-oss on FreeToken** when the quiz score matters more than decode speed.
-- Mark upstream speed numbers **`cited_other_hw`** until I have run them here.
+- Flip to **Use case B** for sticky quote research/refactor.
 
 ---
 
 ## Reflections
 
-On a 4090 with about 27 GB of system RAM, both use cases share a **96k** window (`MAX_LEN=98304`, `KV_MEM=5.2e9`) — the **real ceiling to stress in user/harness sessions** on this WSL box (still short of many 128k–200k+ clouds). Usable VRAM is about **23 GB** after Windows/WSLg (**1.2 GB**). At that window: **A invent 134.3 tok/s**, **B sticky 147.2 tok/s**, sticky quote through **25138** prompt tokens. Older A-on-`CTX=fast` 64k was faster (156–175) but too small for the harness goal. The A/B flip is draft length (n=7 vs n=15), not a second context size.
+On a 4090 with about 27 GB of system RAM, both use cases share a **96k** window, the **real ceiling to stress in user/harness sessions** on this WSL box (still short of many 128k–200k+ clouds). Usable VRAM is about **23 GB** after Windows/WSLg. At that window: **A invent 134.3 tok/s**, **B sticky 147.2 tok/s**, sticky quote through **25138** prompt tokens. 
 
-The power-limit change does not explain the invent-loop speed jump vs early benches. A short generation sits around 285 W. The driver, the firmware, and the boot path are the likely reasons.
-
-OpenCode/OmO invent-loop is a measured path (the web Tetris run on Use case A). **Next:** Use case B / repo `/plan` **at 96k** in a real harness, then harness bake-offs on that backend.
-
----
-
-## Lab status
-
-Checklist and logs: [`05_IMPLEMENTATION.md`](../05_IMPLEMENTATION.md). Artifacts under `~/LLM/HyperQwen/bench-results/`.
-
-Do not commit `.env`, weights, or API keys.
-
----
-
-## Why llama.cpp MTP next (not a decode chase)
-
-Pulled plan: [`06_IMPLEMENTATION.md`](../06_IMPLEMENTATION.md) (Qwen3.8-27B GGUF + built-in MTP vs this HyperQwen daily).
-
-**No — it wasn’t decode tok/s.**
-
-HyperQwen already wins that fight on this box: invent **134** / sticky **147** tok/s @ 96k with DFlash2. Community llama.cpp MTP on a 4090 is more like **70–85**. HyperQwen’s own `SPEC=mtp` was **slower** (101 tok/s), so DFlash2 stayed the daily guesser for speed.
-
-**Why MTP / llama.cpp anyway:** a **context wall**, not a speed wall.
-
-| | HyperQwen (this adventure) | llama.cpp MTP (`06`) |
-|---|---|---|
-| Bottleneck found | Usable sticky **96k** under WSL; denser KVarN didn’t buy a safe bigger window | Claim: **q4_0 KV** + lighter **Q4_K_M** (16–17 GB) → try **>96k** |
-| Decode | Already good | Expected **worse** — not the goal |
-| Question | “Can dense 27B run well here?” → **yes @ 96k** | “Can this box hold a **bigger** window than HyperQwen’s ceiling?” |
-
-**ELI5:** HyperQwen gave a strong **daily** 27B server. llama.cpp MTP is to see if a **smaller weight file + denser chat memory** can go **past 96k** — a context experiment, not a quest for more tok/s.
+HyperQwen gave a fast Qwen3.8-27B server but llama.cpp MTP gave a sufficiently fast Qwen3.8-27B server with much larger context.
