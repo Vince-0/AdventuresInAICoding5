@@ -44,6 +44,7 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 |----------|------|------|
 | **HyperQwen** | Custom vLLM patch + weights, **fastest decode** DFlash2 | Medium context |
 | llama.cpp GGUF | GGUF package, largest dense context, MTP | Slower decode than HyperQwen |
+| llama.cpp + **DSpine** | Same GGUF target + DSpine draft; beats MTP on invent | Needs [Ajay9o9 `dspine` fork](https://github.com/Ajay9o9/llama.cpp/tree/dspine) (not stock llama); loses to HyperQwen DFlash2 on prose **and** code |
 | FreeToken dense | Same Qwen3.8 family on FreeToken | Big weights = small context |
 | FreeToken MoE | MoE bigger than VRAM (experts in RAM); **largest context** | Different model (3.6-A3B); PCIe/CPU-bound decode |
 | Stock vLLM | Stock engine, serves a model that fits | DIY config long-context, DFlash, and requant |
@@ -54,12 +55,13 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 |----------|----------------------|------|----|---------|-------------:|-----|
 | **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **134** | Lean weights + quantized KV |
 | llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB + grows | 180k | 74 | Leanest KV bytes/tok, MTP |
+| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | q4_0 | **96k** (n-max 7) | **81** prose / **138** code | Same sensors @ 96k vs MTP/HQ; usable sticky ~97.7k |
 | FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | no quant 4GB | 48k | 43 | Weights eat most of the card |
 | FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
-I would adjust approach to get that sweet 256k context size of FreeToken Mixture-of-Experts on an earlier Qwen3.6 model because no Qwen3.6 MoE exists yet.
+I would adjust approach to get that sweet 256k context size of FreeToken Mixture-of-Experts on an earlier Qwen3.6 model because **no Qwen3.8 dense-sibling MoE** exists for FreeToken on this box — the Qwen3.8 MoE that *does* exist is **Flash-Next** (≫RAM here). See [BigMoeOnEdge](https://github.com/Helldez/BigMoeOnEdge) investigation below for streaming Flash-Next from NVMe.
 
 ### Context size
 
@@ -301,23 +303,44 @@ HyperQwen preparation: [drafter/README.md](https://github.com/syv-ai/HyperQwen/b
     • -fast — further-tweaked head/draft bits (15% faster in single-user mode)
     • DFlash2 — the separate small block-guesser HyperQwen uses 
 
-#### DFlash2 vs MTP
+#### DFlash2 vs MTP vs DSpine
 
 Same idea (guess → big model checks), different guesser.
 
-| | **MTP** | **DFlash2** |
-|---|---------|-------------|
-| **What guesses** | Small **heads baked into** Qwen3.8 (`nextn`) | **Separate** 1.9B draft model |
-| **How it guesses** | Predicts the next few tokens from those heads | **Block** draft (diffusion-style); proposes a short phrase |
-| **Extra files** | Often already in the checkpoint / GGUF | W4A16 drafter on GPU |
-| **Typical home** | llama.cpp `draft-mtp`; HyperQwen `SPEC=mtp` | HyperQwen `SPEC=dflash2` (this adventure’s daily) |
-| **On this box** | 101 tok/s (HyperQwen MTP) / 70–85 (llama.cpp) | 134–147 tok/s invent/sticky @ 96k |
+| | **MTP** | **DFlash2** | **DSpine** |
+|---|---------|-------------|------------|
+| **What guesses** | Small **heads baked into** Qwen3.8 (`nextn`) | **Separate** ~1.9B draft model | **Separate** five-layer draft; reads 5 target hidden layers |
+| **How it guesses** | Next few tokens from those heads | Block draft (diffusion-style) | Parallel 16-token block + code bridge + last-write refine ([paper](https://arxiv.org/abs/2609.36173)) |
+| **Extra files** | Often already in the GGUF | W4A16 drafter (HyperQwen) | [DSpine-b16 GGUF](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) (~1.3 GB Q4_K_M) |
+| **Typical home** | Stock llama.cpp `draft-mtp` | HyperQwen `SPEC=dflash2` | [Ajay9o9 llama.cpp `dspine`](https://github.com/Ajay9o9/llama.cpp/tree/dspine) only (stock llama refuses the file) |
+| **On this box @ 96k** | prose **74** / code **90** (MTP n=2) | prose **134** / code **232** (DFlash2 n=7) | prose **81** / code **138** (DSpine n=7); usable sticky **~97.7k** |
 
 MTP = the model’s **built-in mini-crystal-ball**.
 
-DFlash2 = a **sidekick model** that blurts a whole short guess for the big model to mark right/wrong. 
+DFlash2 = a **sidekick model** that blurts a whole short guess for the big model to mark right/wrong.
 
-Both save full-model steps when guesses land; DFlash2 is what HyperQwen tuned for the invent/sticky use cases here.
+DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel drafts, hungrier for VRAM when `n-max` is high (n-max 15 → ~65k boot on 24 GB; n-max 7 keeps the **96k** window comparable to HyperQwen).
+
+**Invent bakeoff @ 96k** (thinking off, temp 0, `max_tokens=151`, warm median of 3; prose = binary-search paragraph; code = mergesort):
+
+| Stack | Spec | Prose tok/s | Code tok/s | Usable sticky |
+|-------|------|------------:|-----------:|--------------:|
+| **HyperQwen** | DFlash2 n=7 | **134** | **232** | ~97.7k |
+| llama.cpp **DSpine** | draft-dflash n=7 | 81 | 138 | **97.7k** |
+| llama.cpp **MTP** | draft-mtp n=2 | 74 | 90 | 183.8k @ 180k boot |
+
+Prefer `CTX=98304 NMAX=7` for DSpine when matching this adventure’s 96k window. Serve: `llamacpp-mtp/serve_dspine.sh`. Artifacts: `llamacpp-mtp/bench-results/NOTES_dspine_vs_dflash.md`, `layer_b_invent_code_*.json`.
+
+### BigMoeOnEdge (Qwen3.8 MoE = Flash-Next, not dense 27B)
+
+[#5](.)’s FreeToken MoE column uses **Qwen3.6-35B-A3B** because FreeToken cannot host **Qwen3.8-Flash-Next** on ~27 GiB RAM (PLE/experts want ~64–128 GiB-class). [BigMoeOnEdge](https://github.com/Helldez/BigMoeOnEdge) is the other wall: stream routed experts from **NVMe** on stock llama.cpp so Flash-Next **runs at all**.
+
+| On this box (estimate from author table) | Expectation |
+|------------------------------------------|-------------|
+| 24 GB GPU + **~27 GiB RAM** + fast disk | Flash-Next mostly **flash-streamed** → ~**16–21** tok/s class (not the 70 tok/s row, which needs **~96 GiB RAM**) |
+| Same engine, Qwen3.6-35B-A3B that fits | Can be GPU-resident → much faster; overlaps FreeToken MoE model, different stack |
+
+**Not measured on this box yet** (needs a ~66–84 GB Flash-Next GGUF download). Author numbers: [BigMoeOnEdge README](https://github.com/Helldez/BigMoeOnEdge#performance).
 
 ---
 
