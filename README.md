@@ -261,6 +261,19 @@ How to read it:
 
 ---
 
+**Use case A vs B:** same weights and same 96k window only the draft check length changes:
+
+| | **Use case A: invent** | **Use case B: sticky** |
+|--|-------------------------|-------------------------|
+| **What** | **New** text (chat, pair programming, agent invent-loop). | **Reuses** what you already pasted (quote, edit, `/plan`, fat `@file`). |
+| **When** | Daily coding / OpenCode invent turns. | Repo plan, in-context refactor, “quote this marker.” |
+| **Shared settings** | `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9` (96k), `SPEC=dflash2`, prefix cache on | **Same** |
+| **Difference** | Leave `DFLASH_TOKENS` = **7**) | Set `DFLASH_TOKENS=15` |
+| **Lookup draft** | None | Lookup drafting can copy tokens from the prompt, turn 2 can hit the prefix cache |
+| **Decode speed** | 134 tok/s | 147 tok/s |
+
+---
+
 ### DFlash2
 
 A small helper model (**DFlash2**) guesses the next few words. The 27B model checks that guess in one step. Checking a short block is faster than generating one word at a time with the full model.
@@ -308,17 +321,6 @@ MTP = the model’s **built-in mini-crystal-ball**.
 DFlash2 = a **sidekick model** that blurts a whole short guess for the big model to mark right/wrong.
 
 DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel drafts, hungrier for VRAM when `n-max` is high (n-max 15 → ~65k boot on 24 GB; n-max 7 keeps the **96k** window comparable to HyperQwen).
-
-**Use case A vs B:** same weights and same 96k window only the draft check length changes:
-
-| | **Use case A: invent** | **Use case B: sticky** |
-|--|-------------------------|-------------------------|
-| **What** | **New** text (chat, pair programming, agent invent-loop). | **Reuses** what you already pasted (quote, edit, `/plan`, fat `@file`). |
-| **When** | Daily coding / OpenCode invent turns. | Repo plan, in-context refactor, “quote this marker.” |
-| **Shared settings** | `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9` (96k), `SPEC=dflash2`, prefix cache on | **Same** |
-| **Difference** | Leave `DFLASH_TOKENS` = **7**) | Set `DFLASH_TOKENS=15` |
-| **Lookup draft** | None | Lookup drafting can copy tokens from the prompt, turn 2 can hit the prefix cache |
-| **Decode speed** | 134 tok/s | 147 tok/s |
 
 **Invent bakeoff @ 96k** (thinking off, temp 0, `max_tokens=151`, warm median of 3; prose = binary-search paragraph; code = mergesort):
 
