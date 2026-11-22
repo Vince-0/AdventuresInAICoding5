@@ -129,18 +129,6 @@ The difference between the vanilla model and the quantized model is measured by:
   2. Perplexity: with [quality battery](https://github.com/syv-ai/HyperQwen/blob/main/bench/quality_battery.py) show the model text it hasn’t seen and ask: how unsurprised are you by the next word? Lower = less surprised. If perplexity goes  up after quantization, the model got a bit worse at predicting normal text. 
   3. Round-trip error: Take one weight number → squash it to 4-bit → expand it back → compare to the original = 0.6% 
 
-**Use case A vs B:** same weights and same 96k window only the draft check length changes:
-
-| | **Use case A: invent** | **Use case B: sticky** |
-|--|-------------------------|-------------------------|
-| **What** | **New** text (chat, pair programming, agent invent-loop). | **Reuses** what you already pasted (quote, edit, `/plan`, fat `@file`). |
-| **When** | Daily coding / OpenCode invent turns. | Repo plan, in-context refactor, “quote this marker.” |
-| **Shared settings** | `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9` (96k), `SPEC=dflash2`, prefix cache on | **Same** |
-| **Difference** | Leave `DFLASH_TOKENS` = **7**) | Set `DFLASH_TOKENS=15` |
-| **Lookup draft** | None | Lookup drafting can copy tokens from the prompt, turn 2 can hit the prefix cache |
-| **Decode speed** | 134 tok/s | 147 tok/s |
-
-
 **Steps**
 
 Python venv and HyperQwen’s `docs/install.md`.
@@ -320,6 +308,17 @@ MTP = the model’s **built-in mini-crystal-ball**.
 DFlash2 = a **sidekick model** that blurts a whole short guess for the big model to mark right/wrong.
 
 DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel drafts, hungrier for VRAM when `n-max` is high (n-max 15 → ~65k boot on 24 GB; n-max 7 keeps the **96k** window comparable to HyperQwen).
+
+**Use case A vs B:** same weights and same 96k window only the draft check length changes:
+
+| | **Use case A: invent** | **Use case B: sticky** |
+|--|-------------------------|-------------------------|
+| **What** | **New** text (chat, pair programming, agent invent-loop). | **Reuses** what you already pasted (quote, edit, `/plan`, fat `@file`). |
+| **When** | Daily coding / OpenCode invent turns. | Repo plan, in-context refactor, “quote this marker.” |
+| **Shared settings** | `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9` (96k), `SPEC=dflash2`, prefix cache on | **Same** |
+| **Difference** | Leave `DFLASH_TOKENS` = **7**) | Set `DFLASH_TOKENS=15` |
+| **Lookup draft** | None | Lookup drafting can copy tokens from the prompt, turn 2 can hit the prefix cache |
+| **Decode speed** | 134 tok/s | 147 tok/s |
 
 **Invent bakeoff @ 96k** (thinking off, temp 0, `max_tokens=151`, warm median of 3; prose = binary-search paragraph; code = mergesort):
 
