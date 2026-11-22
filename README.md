@@ -330,19 +330,6 @@ DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel draf
 | llama.cpp **DSpine** | draft-dflash n=7 | 81 | 138 | **97.7k** |
 | llama.cpp **MTP** | draft-mtp n=2 | 74 | 90 | 183.8k @ 180k boot |
 
-Prefer `CTX=98304 NMAX=7` for DSpine when matching this adventure’s 96k window. Serve: `llamacpp-mtp/serve_dspine.sh`. Artifacts: `llamacpp-mtp/bench-results/NOTES_dspine_vs_dflash.md`, `layer_b_invent_code_*.json`.
-
-### BigMoeOnEdge (Qwen3.8 MoE = Flash-Next, not dense 27B)
-
-[#5](.)’s FreeToken MoE column uses **Qwen3.6-35B-A3B** because FreeToken cannot host **Qwen3.8-Flash-Next** on ~27 GiB RAM (PLE/experts want ~64–128 GiB-class). [BigMoeOnEdge](https://github.com/Helldez/BigMoeOnEdge) is the other wall: stream routed experts from **NVMe** on stock llama.cpp so Flash-Next **runs at all**.
-
-| On this box (estimate from author table) | Expectation |
-|------------------------------------------|-------------|
-| 24 GB GPU + **~27 GiB RAM** + fast disk | Flash-Next mostly **flash-streamed** → ~**16–21** tok/s class (not the 70 tok/s row, which needs **~96 GiB RAM**) |
-| Same engine, Qwen3.6-35B-A3B that fits | Can be GPU-resident → much faster; overlaps FreeToken MoE model, different stack |
-
-**Not measured on this box yet** (needs a ~66–84 GB Flash-Next GGUF download). Author numbers: [BigMoeOnEdge README](https://github.com/Helldez/BigMoeOnEdge#performance).
-
 ---
 
 ## Results
