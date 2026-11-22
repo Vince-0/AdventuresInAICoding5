@@ -61,8 +61,6 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
-I would adjust approach to get that sweet 256k context size of FreeToken Mixture-of-Experts on an earlier Qwen3.6 model because **no Qwen3.8 dense-sibling MoE** exists for FreeToken on this box — the Qwen3.8 MoE that *does* exist is **Flash-Next** (≫RAM here). See [BigMoeOnEdge](https://github.com/Helldez/BigMoeOnEdge) investigation below for streaming Flash-Next from NVMe.
-
 ### Context size
 
 Context size is how much of the conversation + pasted files the model can “see at once” (in tokens).
