@@ -259,7 +259,10 @@ How to read it:
 
 ---
 
-**Use case A vs B:** same weights and same 96k window only the draft check length changes:
+**Use case A:** "Write a complete Python mergesort + docstring + __main__ demo". Extract code → exec → must sort fixed + random int lists. Budget 1536 tokens.
+**Use case B:** "Quote the secret phrase from the document exactly, nothing else." 
+
+Same weights and same 96k window only the draft check length changes:
 
 | | **Use case A: invent** | **Use case B: sticky** |
 |--|-------------------------|-------------------------|
