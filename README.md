@@ -51,13 +51,15 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 
 **How they fit on this 24 GB card**
 
-| Approach | Weights (model/quant) | Size | KV | Context | Decode tok/s | Why |
+**Decode A / B** in the table = invent-code speed under invent vs sticky **draft settings** (mergesort job; quality 3/3). The two *jobs* themselves are spelled out under [The two use cases (ELI5)](#the-two-use-cases-eli5). Phase timings (TTFT / prefill / decode) for invent-code **and** sticky~25k quote: [`SUMMARY_phase_timings.md`](bench-results/ab_decode_campaign/SUMMARY_phase_timings.md) (warm sticky prefill is cache-inflated — use **cold** sticky prefill).
+
+| Approach | Weights (model/quant) | Size | KV | Context | Decode A / B | Why |
 |----------|----------------------|------|----|---------|-------------:|-----|
-| **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **134** | Lean weights + quantized KV |
-| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB + grows | 180k | 74 | Leanest KV bytes/tok, MTP |
-| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | q4_0 | **96k** (n-max 7) | **81** prose / **138** code | Same sensors @ 96k vs MTP/HQ; usable sticky ~97.7k |
-| FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | no quant 4GB | 48k | 43 | Weights eat most of the card |
-| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | 41 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
+| **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **234 / 177** | Lean weights + quantized KV |
+| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB + grows | 180k | **91 / —** | Leanest KV bytes/tok, MTP (no Mode B) |
+| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | q4_0 | **96k** A / **65k** B | **182 / 196** | A n-max 7 @96k; B n-max 15 needs ~65k on 24 GB (faster on code) |
+| FreeToken dense | Qwen3.8-27B NVFP4 + host embeds | 20GB+2.4GB | no quant 4GB | 48k | **40 / —** | Weights eat most of the card |
+| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | **45 / —** | Experts off GPU → room for KV; decode PCIe/CPU-bound |
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
@@ -259,19 +261,41 @@ How to read it:
 
 ---
 
-**Use case A:** "Write a complete Python mergesort + docstring + __main__ demo". Extract code → exec → must sort fixed + random int lists. Budget 1536 tokens.
-**Use case B:** "Quote the secret phrase from the document exactly, nothing else." 
+### The two use cases (ELI5)
 
-Same weights and same 96k window only the draft check length changes:
+We do **not** score “the model in general.” We score two jobs a coding agent actually does: **write new code** vs **find something already in a fat paste**.
 
-| | **Use case A: invent** | **Use case B: sticky** |
-|--|-------------------------|-------------------------|
-| **What** | **New** text (chat, pair programming, agent invent-loop). | **Reuses** what you already pasted (quote, edit, `/plan`, fat `@file`). |
-| **When** | Daily coding / OpenCode invent turns. | Repo plan, in-context refactor, “quote this marker.” |
-| **Shared settings** | `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9` (96k), `SPEC=dflash2`, prefix cache on | **Same** |
-| **Difference** | Leave `DFLASH_TOKENS` = **7**) | Set `DFLASH_TOKENS=15` |
-| **Lookup draft** | None | Lookup drafting can copy tokens from the prompt, turn 2 can hit the prefix cache |
-| **Decode speed** | 134 tok/s | 147 tok/s |
+**Use case A — invent (write new code)**
+
+Ask:
+
+> Write a complete Python function that implements mergesort on a list of ints. Include docstring and a small `__main__` demo. Keep going until the length limit.
+
+- Budget: **1536** completion tokens (enough to finish; models stop earlier with `finish=stop`).
+- Pass: extract the Python → run it → it must correctly sort fixed lists **and** random int lists.
+- What it feels like: OpenCode invent-loop, “implement this function,” pair-programming from a blank reply.
+- On HyperQwen we boot invent draft length **n=7** (`DFLASH_TOKENS=7`).
+
+**Use case B — sticky (quote from a fat document)**
+
+Paste a long filler document (~**25k** prompt tokens) that hides a marker near the end, then ask only:
+
+> Quote the secret phrase from the document exactly, nothing else.
+
+- Pass: the reply contains the marker (e.g. `UNIQUE_MARKER_QZ9_MODE_B`).
+- Reply is tiny (~9 tokens); the hard part is **reading** the fat prompt (prefill / TTFT), not writing a long answer.
+- What it feels like: `/plan`, fat `@file`, “quote this,” in-context edit — the answer is already in what you pasted.
+- On HyperQwen we boot sticky draft length **n=15** (`DFLASH_TOKENS=15`) so lookup can copy from the prompt.
+
+| | **A invent** | **B sticky** |
+|--|--------------|--------------|
+| **Job** | Create new code | Reuse text already in the prompt |
+| **Prompt** | Mergesort + docstring + `__main__` | ~25k doc + “quote the secret phrase…” |
+| **Quality check** | Exec sort tests | Marker present in reply |
+| **Speed that matters** | **Decode** tok/s (long reply) | **TTFT / prefill** tok/s (fat read; short reply) |
+| **HQ draft knob** | n=7 | n=15 |
+
+Same 27B weights and (on HyperQwen) the same **96k** window — only the **job** and the **draft check length** change. Artifacts: [`bench-results/ab_decode_campaign/`](bench-results/ab_decode_campaign/).
 
 ---
 
@@ -345,13 +369,13 @@ People usually ask one question: how many tokens per second? That misses this wr
 | Name | What it measures | How to read it |
 |------|------------------|----------------|
 | **Speed** | Medium decode after warmup | tok/s on a short decode, wall time including time to first token. Higher feels snappier. |
-| **Invent** | Use case A small correct Python | Fixed prompts, extract code, run checks, passed/total. |
-| **Sticky** | Use case B large-context sticky quote a marker in a fat prompt, use the cache | Pass/fail to find the sticky quote in the prompt |
+| **Invent (A)** | Mergesort prompt → extract → exec sort tests | Correct sorts on fixed + random lists (budget 1536). |
+| **Sticky (B)** | ~25k doc + “quote the secret phrase…” | Marker present in the short reply. |
 
 | Role | Speed | Test |
 |------|-------|------|
-| **Invent** | **134.3 tok/s** | Pass **14/24** tests |
-| **Sticky** | **147.2 tok/s** | Quote **PASS** < 25k prompt tokens |
+| **Invent (A)** | Decode **234** tok/s (HQ n=7; quality **3/3**) | Also C0 invent-loop **14/24** |
+| **Sticky (B)** | Cold prefill / TTFT on ~25k quote (see phase timings); HQ sticky quote **PASS** @ **25138** prompt tokens | Marker in reply |
 
 ---
 
@@ -469,6 +493,6 @@ Use HyperQwen when the job is dense Qwen3.8-27B on one 24 GB card, an OpenAI-com
 
 ## Reflections
 
-On a 4090 with about 27 GB of system RAM, both use cases share a **96k** window, the **real ceiling to stress in user/harness sessions** on this WSL box (still short of many 128k–200k+ clouds). Usable VRAM is about **23 GB** after Windows/WSLg. At that window: **A invent 134.3 tok/s**, **B sticky 147.2 tok/s**, sticky quote through **25138** prompt tokens. 
+On a 4090 with about 27 GB of system RAM, both use cases share a **96k** window, the **real ceiling to stress in user/harness sessions** on this WSL box (still short of many 128k–200k+ clouds). Usable VRAM is about **23 GB** after Windows/WSLg. Fresh A/B invent-**code** (mergesort) decode: **A 234 / B 177** tok/s (quality 3/3 both; n=15 is slower on invent-code). Sticky quote through **25138** prompt tokens. 
 
 HyperQwen gave a fast Qwen3.8-27B server but llama.cpp MTP gave a sufficiently fast Qwen3.8-27B server with much larger context.

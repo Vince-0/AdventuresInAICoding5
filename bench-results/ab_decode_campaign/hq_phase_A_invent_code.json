@@ -1,0 +1,132 @@
+{
+  "tag": "hq_phase_A_invent_code",
+  "usecase": "A",
+  "job": "invent_code",
+  "note": "HQ DFlash2 n=7 @96k invent-code phase timings",
+  "when": "2026-11-23T20:45:00+1100",
+  "hardware_id": "wsl2-rtx4090-24g-27gib",
+  "evidence": "ran_here",
+  "base_url": "http://127.0.0.1:18020",
+  "model": "qwen3.8-27b",
+  "max_tokens": 1536,
+  "sticky_target": null,
+  "definitions": {
+    "TTFT": "time to first streamed content token",
+    "prefill_tok_s": "prompt_tokens / TTFT",
+    "decode_tok_s": "(completion_tokens - 1) / (wall - TTFT)",
+    "e2e_tok_s": "completion_tokens / wall"
+  },
+  "gpu_idle": {
+    "driver_version": "610.88",
+    "power_limit_w": "450.00",
+    "power_draw_w": "269.97",
+    "sm_clock_mhz": "2775",
+    "mem_clock_mhz": "10251",
+    "gpu_util_pct": "92",
+    "mem_used_mib": "23024"
+  },
+  "warm_median_ttft_s": 0.11,
+  "warm_median_prefill_tok_s": 414.97,
+  "warm_median_decode_tok_s": 252.75,
+  "warm_median_e2e_tok_s": 246.62,
+  "warm_median_prompt_tokens": 45,
+  "sticky_warm_pass": null,
+  "sticky_warm_total": null,
+  "runs": [
+    {
+      "wall_s": 4.219,
+      "ttft_s": 0.351,
+      "decode_s": 3.868,
+      "prompt_tokens": 45,
+      "completion_tokens": 993,
+      "prefill_tok_s": 128.34,
+      "decode_tok_s": 256.43,
+      "e2e_tok_s": 235.36,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the mergesort algorithm.\n    \n    Mergesort is a divide-and-conquer algorithm that works by recursively\n",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "271.69",
+        "sm_clock_mhz": "2775",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "90",
+        "mem_used_mib": "23024"
+      },
+      "label": "cold"
+    },
+    {
+      "wall_s": 4.057,
+      "ttft_s": 0.108,
+      "decode_s": 3.949,
+      "prompt_tokens": 45,
+      "completion_tokens": 993,
+      "prefill_tok_s": 414.97,
+      "decode_tok_s": 251.21,
+      "e2e_tok_s": 244.75,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the mergesort algorithm.\n    \n    Mergesort is a divide-and-conquer algorithm that works by recursively\n",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "270.56",
+        "sm_clock_mhz": "2775",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "95",
+        "mem_used_mib": "23024"
+      },
+      "label": "warm",
+      "run": 1
+    },
+    {
+      "wall_s": 4.026,
+      "ttft_s": 0.102,
+      "decode_s": 3.925,
+      "prompt_tokens": 45,
+      "completion_tokens": 993,
+      "prefill_tok_s": 442.76,
+      "decode_tok_s": 252.75,
+      "e2e_tok_s": 246.62,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the mergesort algorithm.\n    \n    Mergesort is a divide-and-conquer algorithm that works by recursively\n",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "268.60",
+        "sm_clock_mhz": "2775",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "92",
+        "mem_used_mib": "23024"
+      },
+      "label": "warm",
+      "run": 2
+    },
+    {
+      "wall_s": 4.017,
+      "ttft_s": 0.113,
+      "decode_s": 3.904,
+      "prompt_tokens": 45,
+      "completion_tokens": 993,
+      "prefill_tok_s": 397.58,
+      "decode_tok_s": 254.13,
+      "e2e_tok_s": 247.22,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the mergesort algorithm.\n    \n    Mergesort is a divide-and-conquer algorithm that works by recursively\n",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "269.97",
+        "sm_clock_mhz": "2775",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "92",
+        "mem_used_mib": "23024"
+      },
+      "label": "warm",
+      "run": 3
+    }
+  ]
+}

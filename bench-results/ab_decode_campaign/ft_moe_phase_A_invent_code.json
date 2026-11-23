@@ -1,0 +1,132 @@
+{
+  "tag": "ft_moe_phase_A_invent_code",
+  "usecase": "A",
+  "job": "invent_code",
+  "note": "FT MoE invent phase",
+  "when": "2026-11-23T21:26:52+1100",
+  "hardware_id": "wsl2-rtx4090-24g-27gib",
+  "evidence": "ran_here",
+  "base_url": "http://127.0.0.1:1919",
+  "model": "qwen36-a3b-nvfp4",
+  "max_tokens": 1536,
+  "sticky_target": null,
+  "definitions": {
+    "TTFT": "time to first streamed content token",
+    "prefill_tok_s": "prompt_tokens / TTFT",
+    "decode_tok_s": "(completion_tokens - 1) / (wall - TTFT)",
+    "e2e_tok_s": "completion_tokens / wall"
+  },
+  "gpu_idle": {
+    "driver_version": "610.88",
+    "power_limit_w": "450.00",
+    "power_draw_w": "58.14",
+    "sm_clock_mhz": "915",
+    "mem_clock_mhz": "5001",
+    "gpu_util_pct": "60",
+    "mem_used_mib": "13062"
+  },
+  "warm_median_ttft_s": 0.97,
+  "warm_median_prefill_tok_s": 46.2,
+  "warm_median_decode_tok_s": 37.95,
+  "warm_median_e2e_tok_s": 36.08,
+  "warm_median_prompt_tokens": 45,
+  "sticky_warm_pass": null,
+  "sticky_warm_total": null,
+  "runs": [
+    {
+      "wall_s": 26.556,
+      "ttft_s": 8.381,
+      "decode_s": 18.176,
+      "prompt_tokens": 45,
+      "completion_tokens": 688,
+      "prefill_tok_s": 5.37,
+      "decode_tok_s": 37.8,
+      "e2e_tok_s": 25.91,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the merge sort algorithm.\n\n    Merge sort is a divide-and-conquer algorithm that divides the input list\n",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "56.73",
+        "sm_clock_mhz": "900",
+        "mem_clock_mhz": "5001",
+        "gpu_util_pct": "60",
+        "mem_used_mib": "13060"
+      },
+      "label": "cold"
+    },
+    {
+      "wall_s": 18.903,
+      "ttft_s": 0.993,
+      "decode_s": 17.909,
+      "prompt_tokens": 45,
+      "completion_tokens": 688,
+      "prefill_tok_s": 45.3,
+      "decode_tok_s": 38.36,
+      "e2e_tok_s": 36.4,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the merge sort algorithm.\n\n    Merge sort is a divide-and-conquer algorithm that divides the input list\n",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "57.43",
+        "sm_clock_mhz": "915",
+        "mem_clock_mhz": "5001",
+        "gpu_util_pct": "61",
+        "mem_used_mib": "13062"
+      },
+      "label": "warm",
+      "run": 1
+    },
+    {
+      "wall_s": 19.094,
+      "ttft_s": 0.974,
+      "decode_s": 18.12,
+      "prompt_tokens": 45,
+      "completion_tokens": 688,
+      "prefill_tok_s": 46.2,
+      "decode_tok_s": 37.91,
+      "e2e_tok_s": 36.03,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the merge sort algorithm.\n\n    Merge sort is a divide-and-conquer algorithm that divides the input list\n",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "57.63",
+        "sm_clock_mhz": "930",
+        "mem_clock_mhz": "5001",
+        "gpu_util_pct": "62",
+        "mem_used_mib": "13062"
+      },
+      "label": "warm",
+      "run": 2
+    },
+    {
+      "wall_s": 19.068,
+      "ttft_s": 0.965,
+      "decode_s": 18.104,
+      "prompt_tokens": 45,
+      "completion_tokens": 688,
+      "prefill_tok_s": 46.65,
+      "decode_tok_s": 37.95,
+      "e2e_tok_s": 36.08,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the merge sort algorithm.\n\n    Merge sort is a divide-and-conquer algorithm that divides the input list\n",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "58.14",
+        "sm_clock_mhz": "915",
+        "mem_clock_mhz": "5001",
+        "gpu_util_pct": "60",
+        "mem_used_mib": "13062"
+      },
+      "label": "warm",
+      "run": 3
+    }
+  ]
+}

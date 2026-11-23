@@ -1,0 +1,132 @@
+{
+  "tag": "mtp_phase_A_invent_code",
+  "usecase": "A",
+  "job": "invent_code",
+  "note": "MTP n2@180k invent phase",
+  "when": "2026-11-23T20:49:59+1100",
+  "hardware_id": "wsl2-rtx4090-24g-27gib",
+  "evidence": "ran_here",
+  "base_url": "http://127.0.0.1:18080",
+  "model": "/home/administrator/models/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_M.gguf",
+  "max_tokens": 1536,
+  "sticky_target": null,
+  "definitions": {
+    "TTFT": "time to first streamed content token",
+    "prefill_tok_s": "prompt_tokens / TTFT",
+    "decode_tok_s": "(completion_tokens - 1) / (wall - TTFT)",
+    "e2e_tok_s": "completion_tokens / wall"
+  },
+  "gpu_idle": {
+    "driver_version": "610.88",
+    "power_limit_w": "450.00",
+    "power_draw_w": "305.75",
+    "sm_clock_mhz": "2760",
+    "mem_clock_mhz": "10251",
+    "gpu_util_pct": "91",
+    "mem_used_mib": "21998"
+  },
+  "warm_median_ttft_s": 0.1,
+  "warm_median_prefill_tok_s": 439.8,
+  "warm_median_decode_tok_s": 100.2,
+  "warm_median_e2e_tok_s": 99.33,
+  "warm_median_prompt_tokens": 45,
+  "sticky_warm_pass": null,
+  "sticky_warm_total": null,
+  "runs": [
+    {
+      "wall_s": 11.412,
+      "ttft_s": 0.666,
+      "decode_s": 10.747,
+      "prompt_tokens": 45,
+      "completion_tokens": 1064,
+      "prefill_tok_s": 67.6,
+      "decode_tok_s": 98.92,
+      "e2e_tok_s": 93.23,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the mergesort algorithm.\n\n    Mergesort is a divide-and-conquer algorithm that works by recursively\n    ",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "315.85",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "91",
+        "mem_used_mib": "21998"
+      },
+      "label": "cold"
+    },
+    {
+      "wall_s": 11.143,
+      "ttft_s": 0.269,
+      "decode_s": 10.874,
+      "prompt_tokens": 45,
+      "completion_tokens": 1064,
+      "prefill_tok_s": 167.29,
+      "decode_tok_s": 97.76,
+      "e2e_tok_s": 95.49,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the mergesort algorithm.\n\n    Mergesort is a divide-and-conquer algorithm that works by recursively\n    ",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "316.89",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "91",
+        "mem_used_mib": "21998"
+      },
+      "label": "warm",
+      "run": 1
+    },
+    {
+      "wall_s": 10.711,
+      "ttft_s": 0.102,
+      "decode_s": 10.609,
+      "prompt_tokens": 45,
+      "completion_tokens": 1064,
+      "prefill_tok_s": 439.8,
+      "decode_tok_s": 100.2,
+      "e2e_tok_s": 99.33,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the mergesort algorithm.\n\n    Mergesort is a divide-and-conquer algorithm that works by recursively\n    ",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "316.57",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "91",
+        "mem_used_mib": "21998"
+      },
+      "label": "warm",
+      "run": 2
+    },
+    {
+      "wall_s": 10.648,
+      "ttft_s": 0.097,
+      "decode_s": 10.551,
+      "prompt_tokens": 45,
+      "completion_tokens": 1064,
+      "prefill_tok_s": 464.8,
+      "decode_tok_s": 100.75,
+      "e2e_tok_s": 99.93,
+      "finish": "stop",
+      "content_prefix": "```python\ndef mergesort(arr: list[int]) -> list[int]:\n    \"\"\"\n    Sort a list of integers using the mergesort algorithm.\n\n    Mergesort is a divide-and-conquer algorithm that works by recursively\n    ",
+      "sticky_ok": null,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "318.13",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "91",
+        "mem_used_mib": "21998"
+      },
+      "label": "warm",
+      "run": 3
+    }
+  ]
+}

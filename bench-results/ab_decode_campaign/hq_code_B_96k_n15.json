@@ -1,0 +1,128 @@
+{
+  "tag": "hq_code_B_96k_n15",
+  "usecase": "B",
+  "note": "HyperQwen DFlash2 n=15 @96k invent-code mergesort + quality",
+  "when": "2026-11-23T20:18:38+1100",
+  "hardware_id": "wsl2-rtx4090-24g-27gib",
+  "evidence": "ran_here",
+  "base_url": "http://127.0.0.1:18020",
+  "model": "qwen3.8-27b",
+  "prompt": "code_mergesort",
+  "prompt_text": "Write a complete Python function that implements mergesort on a list of ints. Include docstring and a small __main__ demo. Keep going until the length limit.",
+  "max_tokens": 1536,
+  "protocol": "cold+N warm; max_tokens=1536; temp=0; thinking=false; wall tok/s + extract/exec mergesort",
+  "gpu_idle": {
+    "driver_version": "610.88",
+    "power_limit_w": "450.00",
+    "power_draw_w": "214.54",
+    "sm_clock_mhz": "2775",
+    "mem_clock_mhz": "10251",
+    "gpu_util_pct": "99",
+    "mem_used_mib": "23856"
+  },
+  "cold_tok_s": 168.02,
+  "warm_tok_s": [
+    170.59,
+    180.23,
+    176.8
+  ],
+  "warm_median_tok_s": 176.8,
+  "warm_mean_tok_s": 175.87,
+  "quality_warm_pass": 3,
+  "quality_warm_total": 3,
+  "quality_warm_pass_rate": 1.0,
+  "sample_path": "/home/administrator/LLM/AdventuresInAICoding5/bench-results/ab_decode_campaign/hq_code_B_96k_n15_sample.py",
+  "runs": [
+    {
+      "wall_s": 5.922,
+      "tok": 995,
+      "tok_s": 168.02,
+      "prompt_tokens": 45,
+      "finish": "stop",
+      "code_extracted": true,
+      "code_chars": 3040,
+      "quality_ok": true,
+      "quality_reason": "pass",
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "208.46",
+        "sm_clock_mhz": "2775",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "79",
+        "mem_used_mib": "23818"
+      },
+      "label": "cold",
+      "content_chars": 3054
+    },
+    {
+      "wall_s": 5.833,
+      "tok": 995,
+      "tok_s": 170.59,
+      "prompt_tokens": 45,
+      "finish": "stop",
+      "code_extracted": true,
+      "code_chars": 3040,
+      "quality_ok": true,
+      "quality_reason": "pass",
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "216.04",
+        "sm_clock_mhz": "2775",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "99",
+        "mem_used_mib": "23824"
+      },
+      "label": "warm",
+      "run": 1,
+      "content_chars": 3054
+    },
+    {
+      "wall_s": 5.521,
+      "tok": 995,
+      "tok_s": 180.23,
+      "prompt_tokens": 45,
+      "finish": "stop",
+      "code_extracted": true,
+      "code_chars": 3040,
+      "quality_ok": true,
+      "quality_reason": "pass",
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "225.16",
+        "sm_clock_mhz": "2775",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "99",
+        "mem_used_mib": "23819"
+      },
+      "label": "warm",
+      "run": 2,
+      "content_chars": 3054
+    },
+    {
+      "wall_s": 5.628,
+      "tok": 995,
+      "tok_s": 176.8,
+      "prompt_tokens": 45,
+      "finish": "stop",
+      "code_extracted": true,
+      "code_chars": 3040,
+      "quality_ok": true,
+      "quality_reason": "pass",
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "214.54",
+        "sm_clock_mhz": "2775",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "99",
+        "mem_used_mib": "23856"
+      },
+      "label": "warm",
+      "run": 3,
+      "content_chars": 3054
+    }
+  ]
+}

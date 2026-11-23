@@ -1,0 +1,101 @@
+{
+  "tag": "dspine_B_65k_n15",
+  "usecase": "B",
+  "note": "DSpine draft-dflash n-max=15 CTX=65536 q4_0 invent prose (sticky-config; 96k does not fit n=15 on 24GB)",
+  "when": "2026-11-22T21:12:21+1100",
+  "hardware_id": "wsl2-rtx4090-24g-27gib",
+  "evidence": "ran_here",
+  "base_url": "http://127.0.0.1:18082",
+  "model": "/home/administrator/models/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_M.gguf",
+  "protocol": "cold+N warm; max_tokens=151; temp=0; thinking=false; wall tok/s; invent prose",
+  "gpu_idle": {
+    "driver_version": "610.88",
+    "power_limit_w": "450.00",
+    "power_draw_w": "283.13",
+    "sm_clock_mhz": "2760",
+    "mem_clock_mhz": "10251",
+    "gpu_util_pct": "63",
+    "mem_used_mib": "21997"
+  },
+  "cold_tok_s": 53.91,
+  "warm_tok_s": [
+    63.88,
+    66.47,
+    66.27
+  ],
+  "warm_median_tok_s": 66.27,
+  "warm_mean_tok_s": 65.54,
+  "runs": [
+    {
+      "wall_s": 2.801,
+      "tok": 151,
+      "tok_s": 53.91,
+      "prompt_tokens": 41,
+      "finish": "length",
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "282.19",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "73",
+        "mem_used_mib": "21997"
+      },
+      "label": "cold"
+    },
+    {
+      "wall_s": 2.364,
+      "tok": 151,
+      "tok_s": 63.88,
+      "prompt_tokens": 41,
+      "finish": "length",
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "285.40",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "90",
+        "mem_used_mib": "21997"
+      },
+      "label": "warm",
+      "run": 1
+    },
+    {
+      "wall_s": 2.272,
+      "tok": 151,
+      "tok_s": 66.47,
+      "prompt_tokens": 41,
+      "finish": "length",
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "291.62",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "91",
+        "mem_used_mib": "21997"
+      },
+      "label": "warm",
+      "run": 2
+    },
+    {
+      "wall_s": 2.279,
+      "tok": 151,
+      "tok_s": 66.27,
+      "prompt_tokens": 41,
+      "finish": "length",
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "291.80",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "92",
+        "mem_used_mib": "21997"
+      },
+      "label": "warm",
+      "run": 3
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "tag": "dspine_phase_B_sticky25k",
+  "usecase": "B",
+  "job": "sticky_quote",
+  "note": "DSpine n15@65k sticky~25k phase",
+  "when": "2026-11-23T20:49:07+1100",
+  "hardware_id": "wsl2-rtx4090-24g-27gib",
+  "evidence": "ran_here",
+  "base_url": "http://127.0.0.1:18082",
+  "model": "/home/administrator/models/qwen3.8-27b/Qwen3.8-27B-UD-Q4_K_M.gguf",
+  "max_tokens": 64,
+  "sticky_target": 38000,
+  "definitions": {
+    "TTFT": "time to first streamed content token",
+    "prefill_tok_s": "prompt_tokens / TTFT",
+    "decode_tok_s": "(completion_tokens - 1) / (wall - TTFT)",
+    "e2e_tok_s": "completion_tokens / wall"
+  },
+  "gpu_idle": {
+    "driver_version": "610.88",
+    "power_limit_w": "450.00",
+    "power_draw_w": "185.58",
+    "sm_clock_mhz": "2760",
+    "mem_clock_mhz": "10251",
+    "gpu_util_pct": "26",
+    "mem_used_mib": "21954"
+  },
+  "warm_median_ttft_s": 0.16,
+  "warm_median_prefill_tok_s": 158050.36,
+  "warm_median_decode_tok_s": 160.17,
+  "warm_median_e2e_tok_s": 43.1,
+  "warm_median_prompt_tokens": 25173,
+  "sticky_warm_pass": 3,
+  "sticky_warm_total": 3,
+  "runs": [
+    {
+      "wall_s": 8.687,
+      "ttft_s": 8.636,
+      "decode_s": 0.051,
+      "prompt_tokens": 25173,
+      "completion_tokens": 9,
+      "prefill_tok_s": 2914.75,
+      "decode_tok_s": 156.72,
+      "e2e_tok_s": 1.04,
+      "finish": "stop",
+      "content_prefix": "UNIQUE_MARKER_QZ9_MODE_B",
+      "sticky_ok": true,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "324.06",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "58",
+        "mem_used_mib": "21954"
+      },
+      "label": "cold"
+    },
+    {
+      "wall_s": 0.208,
+      "ttft_s": 0.157,
+      "decode_s": 0.05,
+      "prompt_tokens": 25173,
+      "completion_tokens": 9,
+      "prefill_tok_s": 160084.79,
+      "decode_tok_s": 158.99,
+      "e2e_tok_s": 43.36,
+      "finish": "stop",
+      "content_prefix": "UNIQUE_MARKER_QZ9_MODE_B",
+      "sticky_ok": true,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "245.71",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "45",
+        "mem_used_mib": "21954"
+      },
+      "label": "warm",
+      "run": 1
+    },
+    {
+      "wall_s": 0.214,
+      "ttft_s": 0.164,
+      "decode_s": 0.05,
+      "prompt_tokens": 25173,
+      "completion_tokens": 9,
+      "prefill_tok_s": 153054.96,
+      "decode_tok_s": 160.17,
+      "e2e_tok_s": 41.97,
+      "finish": "stop",
+      "content_prefix": "UNIQUE_MARKER_QZ9_MODE_B",
+      "sticky_ok": true,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "189.17",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "26",
+        "mem_used_mib": "21954"
+      },
+      "label": "warm",
+      "run": 2
+    },
+    {
+      "wall_s": 0.209,
+      "ttft_s": 0.159,
+      "decode_s": 0.05,
+      "prompt_tokens": 25173,
+      "completion_tokens": 9,
+      "prefill_tok_s": 158050.36,
+      "decode_tok_s": 161.44,
+      "e2e_tok_s": 43.1,
+      "finish": "stop",
+      "content_prefix": "UNIQUE_MARKER_QZ9_MODE_B",
+      "sticky_ok": true,
+      "gpu_after": {
+        "driver_version": "610.88",
+        "power_limit_w": "450.00",
+        "power_draw_w": "185.58",
+        "sm_clock_mhz": "2760",
+        "mem_clock_mhz": "10251",
+        "gpu_util_pct": "26",
+        "mem_used_mib": "21954"
+      },
+      "label": "warm",
+      "run": 3
+    }
+  ]
+}
