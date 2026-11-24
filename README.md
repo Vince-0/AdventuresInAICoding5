@@ -351,6 +351,25 @@ DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel draf
 
 ## Results
 
+**Warm (Invent)** = short question, long answer, after the server has already been chatting a bit.
+
+You ask for a mergesort. The prompt is tiny (~80 tokens). The model then **writes a lot of code**. What you feel is how fast those output tokens stream — that’s **decode**. TTFT is almost nothing because there’s almost nothing to read first.
+
+“Warm” means a prior turn already filled caches, so we’re not pretending this is the first breath of the day. We care about the **writing** phase.
+
+**Cold (Sticky)** = fat document dumped in, tiny answer, **first** time that document is seen.
+
+You paste ~25k tokens of “repo” with a secret phrase buried in it and say “quote the secret.” The reply is a few words. Almost all the work is **reading** the fat prompt before the first token — that’s **TTFT / prefill**.
+
+“Cold” means no prefix cache for that blob yet. If you measured the **second** sticky turn instead, prefill would look insanely fast (cache hit) and lie about how hard the first fat `/plan` feels.
+
+| Job | Bottleneck | So we report |
+|-----|------------|--------------|
+| Warm invent | long **write** | warm TTFT + **warm decode** |
+| Cold sticky | fat **read** | **cold TTFT** + **cold prefill** |
+
+Same GPU, same window idea — two different jobs, so you don’t squash them into one tok/s number.
+
 People usually ask one question: how many tokens per second? That misses this write-up. A server that feels snappy on short invent turns can still fail a fat repo `/plan`, and the other way around so scores are tied to **two jobs on one fixed window**, not a single tok/s number.
 
 **What we hold fixed** (biggest stable usable context on this WSL box):
@@ -364,7 +383,7 @@ People usually ask one question: how many tokens per second? That misses this wr
 | **Prefill tok/s** | `prompt_tokens / TTFT` |
 | **Decode tok/s** | `(completion_tokens − 1) / (wall − TTFT)` |
 
-Warm = invent-code (mergesort). Cold = sticky quote (~25k). DSpine B is n-max 15 @ **65k**; others on the shared **96k** window where noted.
+DSpine B is n-max 15 @ **65k**; others on the shared **96k** window where noted.
 
 | Stack | Warm TTFT (s) | Warm decode | Cold TTFT (s) | Cold prefill tok/s |
 |-------|--------------:|------------:|--------------:|-------------------:|
