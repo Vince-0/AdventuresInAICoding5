@@ -347,14 +347,6 @@ DFlash2 = a **sidekick model** that blurts a whole short guess for the big model
 
 DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel drafts, hungrier for VRAM when `n-max` is high (n-max 15 → ~65k boot on 24 GB; n-max 7 keeps the **96k** window comparable to HyperQwen).
 
-**Invent bakeoff @ 96k** (thinking off, temp 0, `max_tokens=151`, warm median of 3; prose = binary-search paragraph; code = mergesort):
-
-| Stack | Spec | Prose tok/s | Code tok/s | Usable sticky |
-|-------|------|------------:|-----------:|--------------:|
-| **HyperQwen** | DFlash2 n=7 | **134** | **232** | ~97.7k |
-| llama.cpp **DSpine** | draft-dflash n=7 | 81 | 138 | **97.7k** |
-| llama.cpp **MTP** | draft-mtp n=2 | 74 | 90 | 183.8k @ 180k boot |
-
 ---
 
 ## Results
@@ -376,6 +368,12 @@ People usually ask one question: how many tokens per second? That misses this wr
 |------|-------|------|
 | **Invent (A)** | Decode **234** tok/s (HQ n=7; quality **3/3**) | Also C0 invent-loop **14/24** |
 | **Sticky (B)** | Cold prefill / TTFT on ~25k quote (see phase timings); HQ sticky quote **PASS** @ **25138** prompt tokens | Marker in reply |
+
+| Stack | Spec | Prose tok/s | Code tok/s | Usable sticky |
+|-------|------|------------:|-----------:|--------------:|
+| **HyperQwen** | DFlash2 n=7 | **134** | **232** | ~97.7k |
+| llama.cpp **DSpine** | draft-dflash n=7 | 81 | 138 | **97.7k** |
+| llama.cpp **MTP** | draft-mtp n=2 | 74 | 90 | 183.8k @ 180k boot |
 
 ---
 
