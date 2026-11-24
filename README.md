@@ -51,7 +51,7 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 
 **How they fit on this 24 GB card**
 
-**Decode A / B** in the table = invent-code speed under invent vs sticky **draft settings** (mergesort job; quality 3/3). The two *jobs* themselves are spelled out under [The two use cases (ELI5)](#the-two-use-cases-eli5). Phase timings (TTFT / prefill / decode) for invent-code **and** sticky~25k quote: [`SUMMARY_phase_timings.md`](bench-results/ab_decode_campaign/SUMMARY_phase_timings.md) (warm sticky prefill is cache-inflated — use **cold** sticky prefill).
+**Decode A / B** in the table = invent-code speed under invent vs sticky **draft settings** (mergesort job; quality 3/3). The two *jobs* themselves are spelled out under [The two use cases (ELI5)](#the-two-use-cases-eli5). For sticky, warm prefill tok/s can look huge because of the **prefix cache** — compare **cold** sticky prefill when reading phase timings.
 
 | Approach | Weights (model/quant) | Size | KV | Context | Decode A / B | Why |
 |----------|----------------------|------|----|---------|-------------:|-----|
@@ -295,7 +295,7 @@ Paste a long filler document (~**25k** prompt tokens) that hides a marker near t
 | **Speed that matters** | **Decode** tok/s (long reply) | **TTFT / prefill** tok/s (fat read; short reply) |
 | **HQ draft knob** | n=7 | n=15 |
 
-Same 27B weights and (on HyperQwen) the same **96k** window — only the **job** and the **draft check length** change. Artifacts: [`bench-results/ab_decode_campaign/`](bench-results/ab_decode_campaign/).
+Same 27B weights and (on HyperQwen) the same **96k** window — only the **job** and the **draft check length** change.
 
 ---
 

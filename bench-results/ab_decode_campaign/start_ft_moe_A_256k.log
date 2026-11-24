@@ -1,61 +1,0 @@
-[1m[2026-11-22|21:18:02][0m [32mINFO    [0m Parsed arguments:
-ServerArgs(model_path='/home/administrator/LLM/models/hf/Qwen3.6-35B-A3B-NVFP4', tp_info=DistributedInfo(rank=0, size=1), dtype=torch.bfloat16, hf_overrides={}, max_running_req=1, attention_backend='auto', moe_strategy='offload', quant_backend=None, ple_backend='disk', embed_weights='gpu', swa_decoder_replay='bounded', expert_load='auto', moe_cache_size=2048, moe_cache_rate=None, moe_cache_auto=False, moe_cache_mem=None, moe_cache_scope='unified', moe_cache_split='equal', kv_reserve_tokens=8192, moe_cache_policy='lru', moe_prefill_overlap=True, moe_prefill_hit_d2d=False, moe_collect_stats=False, moe_cpu_threads=0, moe_cpu_layers='auto', moe_hybrid_max_fetch=-1, moe_locked_fetch=-1.0, moe_locked_max_fetch=8, cuda_graph_bs=None, cuda_graph_max_bs=1, page_size=1, memory_ratio=0.92, linear_state_cache_ratio=2.0, swa_full_tokens_ratio=0.2, swa_num_pages_override=None, distributed_timeout=60.0, use_dummy_weight=False, use_pynccl=True, speculative_algorithm=None, speculative_num_steps=0, speculative_draft_model_path=None, spec_slot_states=(), max_seq_len_override=None, num_page_override=None, num_token_override=262144, mm=MultimodalConfig(disabled_encoders=frozenset({'audio', 'vision'}), embed_cache_device='cpu', encoder_weights='host', image_min_tokens=None, image_max_tokens=None, processor_kwargs={}), max_extend_tokens=8192, cache_type='radix', offline_mode=False, decode_log_interval=40, special_token_ckpt=False, _unique_suffix='.pid=4132', server_host='127.0.0.1', server_port=1919, num_tokenizer=0, silent_output=False, shell_mode=False, served_model_name='qwen36-a3b-nvfp4', tool_call_parser='qwen3_coder', reasoning_parser='qwen3', sampling_defaults='model', max_output_tokens=None, enable_cache_report=False, enable_timings_report=False, anthropic_inline_system='auto', allowed_media_domains='', allowed_local_media_path='', cors_origins='tauri://localhost,http://tauri.localhost,http://localhost:1420', gpu=(), gpu_assigned=None)
-[1m[2026-11-22|21:18:02|FrontendAPI][0m [32mINFO    [0m Default sampling config (source=model): temperature=1.0, top_k=20, top_p=0.95
-INFO:     Started server process [4132]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:1919 (Press CTRL+C to quit)
-/home/administrator/LLM/FreeToken-src/python/freetoken/engine/engine.py:1537: FutureWarning: torch.cuda._set_allocator_settings is deprecated. Use torch._C._accelerator_setAllocatorSettings instead.
-  torch.cuda.memory._set_allocator_settings("expandable_segments:True")
-[1m[2026-11-22|21:18:04|core|rank=0][0m [32mINFO    [0m Enabled expandable_segments (override via PYTORCH_ALLOC_CONF)
-[1m[2026-11-22|21:18:05|core|rank=0][0m [32mINFO    [0m Auto-selected attention backend: fi
-[1m[2026-11-22|21:18:05|core|rank=0][0m [32mINFO    [0m Resolved config: moe_strategy='offload', attention_backend='fi', cache_type='hybrid_radix', page_size=1
-[1m[2026-11-22|21:18:05|core|rank=0][0m [32mINFO    [0m Free memory before loading model: 22.44 GiB
-[1m[2026-11-22|21:18:05|core|rank=0][0m [32mINFO    [0m kernel triton selected; skipped w4a4: the experts declare no static activation scale (W4A16 checkpoint)
-[1m[2026-11-22|21:18:05|core|rank=0][0m [32mINFO    [0m kernel triton selected; skipped b12x: the weight declares no static activation scale (W4A16 checkpoint); cublas: the weight declares no static activation scale (W4A16 checkpoint)
-Loading weights:   0%|          | 0/3 [00:00<?, ?it/s]Loading weights:  33%|███▎      | 1/3 [00:06<00:12,  6.09s/it]Loading weights:  67%|██████▋   | 2/3 [00:09<00:04,  4.72s/it]Loading weights: 100%|██████████| 3/3 [00:11<00:00,  3.16s/it]Loading weights: 100%|██████████| 3/3 [00:11<00:00,  3.72s/it]
-[1m[2026-11-22|21:18:17|core|rank=0][0m [32mINFO    [0m MoE experts: nvfp4 via triton
-[1m[2026-11-22|21:18:18|core|rank=0][0m [33mWARNING [0m expert banks: low free RAM -> serial build (avoids parallel-reader OOM; override with --expert-load parallel)
-[1m[2026-11-22|21:18:18|core|rank=0][0m [32mINFO    [0m expert banks: slow path (serial build)
-Loading Qwen3.5 NVFP4 experts (modelopt):   0%|          | 0/3 [00:00<?, ?it/s]Loading Qwen3.5 NVFP4 experts (modelopt):  33%|███▎      | 1/3 [00:15<00:30, 15.14s/it]Loading Qwen3.5 NVFP4 experts (modelopt):  67%|██████▋   | 2/3 [00:49<00:26, 26.46s/it]Loading Qwen3.5 NVFP4 experts (modelopt): 100%|██████████| 3/3 [01:48<00:00, 41.44s/it]Loading Qwen3.5 NVFP4 experts (modelopt): 100%|██████████| 3/3 [01:48<00:00, 36.27s/it]
-[1m[2026-11-22|21:20:09|core|rank=0][0m [33mWARNING [0m bank lock failed; leaving this and later banks pageable: [Errno 12] mlock(0.2 GiB): Cannot allocate memory (RLIMIT_MEMLOCK / `ulimit -l` caps OS-locked bytes; raise it or shrink --moe-cpu-layers)
-[1m[2026-11-22|21:20:09|core|rank=0][0m [32mINFO    [0m --moe-cpu-layers auto (pin probe): pinned 23 MoE layers (9.77 GiB) in 2.1s, locked 17 [0, 1, 2, 3, 4, 5, 6, 7, 31, 32, 33, 34, 35, 36, 37, 38, 39]
-[1m[2026-11-22|21:20:09|core|rank=0][0m [32mINFO    [0m --moe-cpu-layers split residency: disabling MoE prefill overlap (locked layers prefill via synchronous pageable copies)
-[1m[2026-11-22|21:20:10|core|rank=0][0m [32mINFO    [0m torch intra-op threads: 8 -> 1 (cores reserved for the pinned CPU MoE pool)
-[1m[2026-11-22|21:20:10|core|rank=0][0m [32mINFO    [0m CPU MoE executor ready: threads=7 (pinned to cores 0..6) isa=avx512bf16+avx512vnni(nvfp4-w4a8) fmt=nvfp4: 40 layers H=2048 I=512 experts=256 layers=40 top_k=8 act=silu max_tokens=1 spin_wait=False handshake=kernel
-[1m[2026-11-22|21:20:10|core|rank=0][0m [32mINFO    [0m Multimodal disabled: --text-model-only
-[1m[2026-11-22|21:20:10|core|rank=0][0m [32mINFO    [0m Allocating 262144 tokens for KV cache, K + V = 5.00 GiB
-[1m[2026-11-22|21:20:10|core|rank=0][0m [32mINFO    [0m Free memory after initialization: 10.57 GiB
-[1m[2026-11-22|21:20:10|core|rank=0][0m [32mINFO    [0m Start capturing CUDA graphs with sizes: [1]
-[1m[2026-11-22|21:20:10|core|rank=0][0m [32mINFO    [0m Free GPU memory before capturing CUDA graphs: 10.57 GiB
-Preparing for capturing CUDA graphs...:   0%|          | 0/1 [00:00<?, ?batch/s]Capturing graphs: bs = 1   | avail_mem = 10.57 GiB:   0%|          | 0/1 [00:00<?, ?batch/s]Capturing graphs: bs = 1   | avail_mem = 10.57 GiB: 100%|██████████| 1/1 [00:20<00:00, 20.66s/batch]Capturing graphs: bs = 1   | avail_mem = 10.57 GiB: 100%|██████████| 1/1 [00:20<00:00, 20.66s/batch]
-[1m[2026-11-22|21:20:37|core|rank=0][0m [32mINFO    [0m Free GPU memory after capturing CUDA graphs: 10.53 GiB
-[1m[2026-11-22|21:20:38|core|rank=0][0m [32mINFO    [0m Scheduler is idle, waiting for new reqs...
-[1m[2026-11-22|21:20:38|FrontendAPI][0m [32mINFO    [0m API server is ready to serve on 127.0.0.1:1919
-[1m[2026-11-22|21:20:54|core|rank=0][0m [32mINFO    [0m Prefill batch, #new-seq: 1, #new-token: 41, #cached-token: 0, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, #running-req: 1, #queue-req: 0, input throughput (token/s): 2.43
-[1m[2026-11-22|21:20:56|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 82, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 2.22, #queue-req: 0
-[1m[2026-11-22|21:20:57|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 122, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 35.07, #queue-req: 0
-[1m[2026-11-22|21:20:58|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 162, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 33.50, #queue-req: 0
-[1m[2026-11-22|21:20:59|core|rank=0][0m [32mINFO    [0m Scheduler is idle, waiting for new reqs...
-INFO:     127.0.0.1:48438 - "POST /v1/chat/completions HTTP/1.1" 200 OK
-[1m[2026-11-22|21:21:00|core|rank=0][0m [32mINFO    [0m Prefill batch, #new-seq: 1, #new-token: 41, #cached-token: 0, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, #running-req: 1, #queue-req: 0, input throughput (token/s): 7.49
-[1m[2026-11-22|21:21:00|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 52, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 17.37, #queue-req: 0
-[1m[2026-11-22|21:21:00|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 92, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 34.83, #queue-req: 0
-[1m[2026-11-22|21:21:01|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 132, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 36.41, #queue-req: 0
-[1m[2026-11-22|21:21:02|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 172, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 36.99, #queue-req: 0
-[1m[2026-11-22|21:21:03|core|rank=0][0m [32mINFO    [0m Scheduler is idle, waiting for new reqs...
-INFO:     127.0.0.1:45264 - "POST /v1/chat/completions HTTP/1.1" 200 OK
-[1m[2026-11-22|21:21:04|core|rank=0][0m [32mINFO    [0m Prefill batch, #new-seq: 1, #new-token: 41, #cached-token: 0, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, #running-req: 1, #queue-req: 0, input throughput (token/s): 7.80
-[1m[2026-11-22|21:21:04|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 62, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 18.67, #queue-req: 0
-[1m[2026-11-22|21:21:05|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 102, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 37.14, #queue-req: 0
-[1m[2026-11-22|21:21:06|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 142, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 38.09, #queue-req: 0
-[1m[2026-11-22|21:21:08|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 182, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 36.18, #queue-req: 0
-[1m[2026-11-22|21:21:08|core|rank=0][0m [32mINFO    [0m Scheduler is idle, waiting for new reqs...
-INFO:     127.0.0.1:45278 - "POST /v1/chat/completions HTTP/1.1" 200 OK
-[1m[2026-11-22|21:21:09|core|rank=0][0m [32mINFO    [0m Prefill batch, #new-seq: 1, #new-token: 41, #cached-token: 0, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, #running-req: 1, #queue-req: 0, input throughput (token/s): 8.03
-[1m[2026-11-22|21:21:10|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 72, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 18.41, #queue-req: 0
-[1m[2026-11-22|21:21:11|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 112, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 35.71, #queue-req: 0
-[1m[2026-11-22|21:21:12|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 1, #token: 152, token usage: 0.00, #mamba-slot: 3/8, mamba usage: 0.38, gen throughput (token/s): 38.20, #queue-req: 0
-[1m[2026-11-22|21:21:13|core|rank=0][0m [32mINFO    [0m Decode batch, #running-req: 0, #token: 0, token usage: 0.00, #mamba-slot: 0/8, mamba usage: 0.00, gen throughput (token/s): 37.48, #queue-req: 0
-[1m[2026-11-22|21:21:13|core|rank=0][0m [32mINFO    [0m Scheduler is idle, waiting for new reqs...
-INFO:     127.0.0.1:47654 - "POST /v1/chat/completions HTTP/1.1" 200 OK
