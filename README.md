@@ -261,7 +261,7 @@ How to read it:
 
 ---
 
-### The two use cases (ELI5)
+### The two use cases
 
 We do **not** score “the model in general.” We score two jobs a coding agent actually does: **write new code** vs **find something already in a fat paste**.
 
@@ -351,22 +351,28 @@ DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel draf
 
 ## Results
 
-**Warm (Invent)** = short question, long answer, after the server has already been chatting a bit.
+| Metric | Definition |
+|--------|------------|
+| **TTFT** | Time to first streamed content token |
+| **Prefill tok/s** | `prompt_tokens / TTFT` |
+| **Decode tok/s** | `(completion_tokens − 1) / (wall − TTFT)` |
+
+| Job | Bottleneck | So we report |
+|-----|------------|--------------|
+| Use case A: warm invent | long **write** | warm TTFT + **warm decode** |
+| Use case B: cold sticky | fat **read** | **cold TTFT** + **cold prefill** |
+
+**Warm** = short question, long answer, after the server has already been chatting a bit.
 
 You ask for a mergesort. The prompt is tiny (~80 tokens). The model then **writes a lot of code**. What you feel is how fast those output tokens stream — that’s **decode**. TTFT is almost nothing because there’s almost nothing to read first.
 
 “Warm” means a prior turn already filled caches, so we’re not pretending this is the first breath of the day. We care about the **writing** phase.
 
-**Cold (Sticky)** = fat document dumped in, tiny answer, **first** time that document is seen.
+**Cold** = fat document dumped in, tiny answer, **first** time that document is seen.
 
 You paste ~25k tokens of “repo” with a secret phrase buried in it and say “quote the secret.” The reply is a few words. Almost all the work is **reading** the fat prompt before the first token — that’s **TTFT / prefill**.
 
 “Cold” means no prefix cache for that blob yet. If you measured the **second** sticky turn instead, prefill would look insanely fast (cache hit) and lie about how hard the first fat `/plan` feels.
-
-| Job | Bottleneck | So we report |
-|-----|------------|--------------|
-| Warm invent | long **write** | warm TTFT + **warm decode** |
-| Cold sticky | fat **read** | **cold TTFT** + **cold prefill** |
 
 Same GPU, same window idea — two different jobs, so you don’t squash them into one tok/s number.
 
@@ -376,12 +382,6 @@ People usually ask one question: how many tokens per second? That misses this wr
 
 - **int8 KV** at **96k** — `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9`
 - Same weights for both jobs: **invent (A)** and **sticky (B)** on that **shared 96k** window (only draft check length changes: 7 vs 15)
-
-| Metric | Definition |
-|--------|------------|
-| **TTFT** | Time to first streamed content token |
-| **Prefill tok/s** | `prompt_tokens / TTFT` |
-| **Decode tok/s** | `(completion_tokens − 1) / (wall − TTFT)` |
 
 DSpine B is n-max 15 @ **65k**; others on the shared **96k** window where noted.
 
