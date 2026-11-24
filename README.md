@@ -358,22 +358,6 @@ People usually ask one question: how many tokens per second? That misses this wr
 - **int8 KV** at **96k** — `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9`
 - Same weights for both jobs: **invent (A)** and **sticky (B)** on that **shared 96k** window (only draft check length changes: 7 vs 15)
 
-| Name | What it measures | How to read it |
-|------|------------------|----------------|
-| **Speed** | Medium decode after warmup | tok/s on a short decode, wall time including time to first token. Higher feels snappier. |
-| **Invent (A)** | Mergesort prompt → extract → exec sort tests | Correct sorts on fixed + random lists (budget 1536). |
-| **Sticky (B)** | ~25k doc + “quote the secret phrase…” | Marker present in the short reply. |
-
-| Role | Speed | Test |
-|------|-------|------|
-| **Invent (A)** | Decode **234** tok/s (HQ n=7; quality **3/3**) | Also C0 invent-loop **14/24** |
-| **Sticky (B)** | Cold prefill / TTFT on ~25k quote (see phase timings); HQ sticky quote **PASS** @ **25138** prompt tokens | Marker in reply |
-
-| Stack | Spec | Prose tok/s | Code tok/s | Usable sticky |
-|-------|------|------------:|-----------:|--------------:|
-| **HyperQwen** | DFlash2 n=7 | **134** | **232** | ~97.7k |
-| llama.cpp **DSpine** | draft-dflash n=7 | 81 | 138 | **97.7k** |
-| llama.cpp **MTP** | draft-mtp n=2 | 74 | 90 | 183.8k @ 180k boot |
 
 ---
 
