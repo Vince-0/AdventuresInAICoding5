@@ -358,6 +358,23 @@ People usually ask one question: how many tokens per second? That misses this wr
 - **int8 KV** at **96k** — `CTX=long`, `MAX_LEN=98304`, `KV_MEM=5.2e9`
 - Same weights for both jobs: **invent (A)** and **sticky (B)** on that **shared 96k** window (only draft check length changes: 7 vs 15)
 
+| Metric | Definition |
+|--------|------------|
+| **TTFT** | Time to first streamed content token |
+| **Prefill tok/s** | `prompt_tokens / TTFT` |
+| **Decode tok/s** | `(completion_tokens − 1) / (wall − TTFT)` |
+
+Warm = invent-code (mergesort). Cold = sticky quote (~25k). DSpine B is n-max 15 @ **65k**; others on the shared **96k** window where noted.
+
+| Stack | Warm TTFT (s) | Warm decode | Cold TTFT (s) | Cold prefill tok/s |
+|-------|--------------:|------------:|--------------:|-------------------:|
+| **HyperQwen** DFlash2 n=7 | 0.11 | **253** | — | — |
+| **HyperQwen** DFlash2 n=15 | 0.08 | 256 | 13.6 | 1847 |
+| llama.cpp **DSpine** n=7 @96k | 0.11 | 196 | **8.4** | **3012** |
+| llama.cpp **DSpine** n=15 @65k | 0.10 | 219 | 8.6 | 2914 |
+| llama.cpp **MTP** n=2 | 0.10 | 100 | 8.7 | 2894 |
+| FreeToken dense | 0.08 | 44 | **821** | 31 |
+| FreeToken MoE | 0.97 | 38 | 7.2 | **3499** |
 
 ---
 
