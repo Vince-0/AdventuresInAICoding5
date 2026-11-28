@@ -110,8 +110,6 @@ New in this write-up:
 
 **How they fit on this 24 GB card**
 
-**Decode A / B** in the table = invent-code speed under invent vs sticky **draft settings** (mergesort job; quality 3/3). The two *jobs* themselves are spelled out under [The two use cases](#the-two-use-cases). For sticky, warm prefill tok/s (tokens per second) can look huge because of the **prefix cache**: compare **cold** sticky prefill when reading phase timings.
-
 | Approach | Weights (model/quant) | Size | KV | Context | Decode A / B | Why |
 |----------|----------------------|------|----|---------|-------------:|-----|
 | **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **234 / 177** | Lean weights + quantized KV |
