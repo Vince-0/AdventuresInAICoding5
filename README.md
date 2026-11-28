@@ -65,10 +65,10 @@ New in this write-up:
 | **DFlash2** | The guesser proposes a block of tokens. The 27B model checks the block. | `SPEC=dflash2` for both practical use cases. |
 | **Lookup drafting** | If the reply is mostly text already in the prompt, take those tokens from history. | Speed win inside Use case B when refactoring or quoting what is already in context. |
 | **Prefix cache** | Keep the KV for a prompt you will send again, so the next turn skips re-reading it. | First fat read is slow. Second turn on the same prefix is where agents feel fast. |
-| **Warm** | A measured turn after the server has already been chatting; caches may already be filled. | Invent-code (mergesort): short prompt, long reply — we care about **decode**. |
-| **Cold** | A measured turn the **first** time a fat prompt is seen; no prefix-cache hit yet. | Sticky quote (about 25k): tiny reply — we care about **TTFT / prefill**. |
+| **Warm** | A measured turn after the server has already been chatting; caches may already be filled. | Invent-code (mergesort): short prompt, long reply: we care about **decode**. |
+| **Cold** | A measured turn the **first** time a fat prompt is seen; no prefix-cache hit yet. | Sticky quote (about 25k): tiny reply: we care about **TTFT / prefill**. |
 | **`-fast` weights** | Extra repack of a few hot parts (output head and draft bits). | Used automatically when those files are present. |
-| **Context / KV** | How the server stores “what I’ve already read,” which sets how long a chat can be. | Daily: **int8 KV at 96k** — shared A/B window on this WSL box. |
+| **Context / KV** | How the server stores “what I’ve already read,” which sets how long a chat can be. | Daily: **int8 KV at 96k**: shared A/B window on this WSL box. |
 | **Marlin repack** | At startup, rewrite the 4-bit weights into a layout the GPU kernels want. | Can run out of memory on WSL if the allocator setting is wrong. See Issues. |
 
 ---
@@ -88,15 +88,15 @@ New in this write-up:
 
 **How they fit on this 24 GB card**
 
-**Decode A / B** in the table = invent-code speed under invent vs sticky **draft settings** (mergesort job; quality 3/3). The two *jobs* themselves are spelled out under [The two use cases](#the-two-use-cases). For sticky, warm prefill tok/s (tokens per second) can look huge because of the **prefix cache** — compare **cold** sticky prefill when reading phase timings.
+**Decode A / B** in the table = invent-code speed under invent vs sticky **draft settings** (mergesort job; quality 3/3). The two *jobs* themselves are spelled out under [The two use cases](#the-two-use-cases). For sticky, warm prefill tok/s (tokens per second) can look huge because of the **prefix cache**: compare **cold** sticky prefill when reading phase timings.
 
 | Approach | Weights (model/quant) | Size | KV | Context | Decode A / B | Why |
 |----------|----------------------|------|----|---------|-------------:|-----|
 | **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **234 / 177** | Lean weights + quantized KV |
-| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB+ | 180k | **91 / 93** | Leanest KV bytes/tok; no invent-vs-sticky draft setting — B is invent-code on the same MTP config |
+| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB+ | 180k | **91 / 93** | Leanest KV bytes/tok; no invent-vs-sticky draft setting: B is invent-code on the same MTP config |
 | llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | **q4_0** about 5GB+ | **96k** A / **65k** B | **182 / 196** | A n-max 7 @96k; B n-max 15 needs about 65k on 24 GB (faster on code) |
-| FreeToken dense | Qwen3.8-27B NVFP4 (NVIDIA 4-bit float) + host embeds | 20GB+2.4GB | no quant 4GB | 48k | **40 / 41** | Weights eat most of the card; no invent-vs-sticky draft setting — B is invent-code on the same config |
-| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | **45 / 46** | Experts off GPU → room for KV; decode PCIe/CPU-bound; no invent-vs-sticky draft setting — B is invent-code on the same config |
+| FreeToken dense | Qwen3.8-27B NVFP4 (NVIDIA 4-bit float) + host embeds | 20GB+2.4GB | no quant 4GB | 48k | **40 / 41** | Weights eat most of the card; no invent-vs-sticky draft setting: B is invent-code on the same config |
+| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | **45 / 46** | Experts off GPU → room for KV; decode PCIe/CPU-bound; no invent-vs-sticky draft setting: B is invent-code on the same config |
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
@@ -198,7 +198,7 @@ Some models can “think out loud” before they answer. That private scratchpad
 
 The useful reply you see is content. Tools an agent wants to run are separate from both.
 
-Every reply has a budget (max_tokens / limit.output) — how many tokens the server is allowed to emit in that turn. 
+Every reply has a budget (max_tokens / limit.output): how many tokens the server is allowed to emit in that turn. 
 
 Thinking, the visible answer, and tool calls all share that same budget.
 
@@ -211,7 +211,7 @@ If thinking is off, almost every token goes to the real answer or to tools. Shor
 
 Agents get tool calls instead of a full belly of private monologue.
 
-For short quizzes and for agents like Hermes, turn thinking off — not because thinking is “bad,” but because it fills the reply budget first, and what’s left may be zero for the answer or for tools.
+For short quizzes and for agents like Hermes, turn thinking off: not because thinking is “bad,” but because it fills the reply budget first, and what’s left may be zero for the answer or for tools.
 
 --- 
 
@@ -267,7 +267,7 @@ How to read it:
 
 We do **not** score “the model in general.” We score two jobs a coding agent actually does: **write new code** vs **find something already in a fat paste**.
 
-**Use case A — invent (write new code)**
+**Use case A: invent (write new code)**
 
 Ask:
 
@@ -278,7 +278,7 @@ Ask:
 - What it feels like: OpenCode invent-loop, “implement this function,” pair-programming from a blank reply.
 - On HyperQwen we boot invent draft length **n=7** (`DFLASH_TOKENS=7`).
 
-**Use case B — sticky (quote from a fat document)**
+**Use case B: sticky (quote from a fat document)**
 
 Paste a long filler document (about **25k** prompt tokens) that hides a marker near the end, then ask only:
 
@@ -286,7 +286,7 @@ Paste a long filler document (about **25k** prompt tokens) that hides a marker n
 
 - Pass: the reply contains the marker (e.g. `UNIQUE_MARKER_QZ9_MODE_B`).
 - Reply is tiny (about 9 tokens); the hard part is **reading** the fat prompt not writing a long answer.
-- What it feels like: `/plan`, fat `@file`, “quote this,” in-context edit — the answer is already in what you pasted.
+- What it feels like: `/plan`, fat `@file`, “quote this,” in-context edit: the answer is already in what you pasted.
 - On HyperQwen we boot sticky draft length **n=15** (`DFLASH_TOKENS=15`) so lookup can copy from the prompt.
 
 | | **A invent** | **B sticky** |
@@ -297,7 +297,7 @@ Paste a long filler document (about **25k** prompt tokens) that hides a marker n
 | **Speed that matters** | **Decode** tok/s (long reply) | **TTFT (time to first token) / prefill** tok/s (fat read; short reply) |
 | **HQ draft knob** | n=7 | n=15 |
 
-Same 27B weights and (on HyperQwen) the same **96k** window — only the **job** and the **draft check length** change.
+Same 27B weights and (on HyperQwen) the same **96k** window: only the **job** and the **draft check length** change.
 
 ---
 
@@ -325,11 +325,11 @@ HyperQwen preparation: [drafter/README.md](https://github.com/syv-ai/HyperQwen/b
     • embed_tokens (input embeddings) → int8 
     • mtp.* (built-in draft module, if present) → int8
 
-  3. Build a smaller draft vocabulary — a 41k-row slice of the output head so a draft model doesn’t score the full 248k vocab every guess.
+  3. Build a smaller draft vocabulary: a 41k-row slice of the output head so a draft model doesn’t score the full 248k vocab every guess.
 
   4. Optional downloads for speed:
-    • -fast — further-tweaked head/draft bits (15% faster in single-user mode)
-    • DFlash2 — the separate small block-guesser HyperQwen uses 
+    • -fast: further-tweaked head/draft bits (15% faster in single-user mode)
+    • DFlash2: the separate small block-guesser HyperQwen uses 
 
 #### DFlash2 vs MTP vs DSpine
 
@@ -366,17 +366,17 @@ DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel draf
 
 **Warm** = short question, long answer, after the server has already been chatting a bit.
 
-You ask for a mergesort. The prompt is tiny (about 80 tokens). The model then **writes a lot of code**. What you feel is how fast those output tokens stream — that’s **decode**. TTFT is almost nothing because there’s almost nothing to read first.
+You ask for a mergesort. The prompt is tiny (about 80 tokens). The model then **writes a lot of code**. What you feel is how fast those output tokens stream: that’s **decode**. TTFT is almost nothing because there’s almost nothing to read first.
 
 “Warm” means a prior turn already filled caches, so we’re not pretending this is the first breath of the day. We care about the **writing** phase.
 
 **Cold** = fat document dumped in, tiny answer, **first** time that document is seen.
 
-You paste about 25k tokens of “repo” with a secret phrase buried in it and say “quote the secret.” The reply is a few words. Almost all the work is **reading** the fat prompt before the first token — that’s **TTFT / prefill**.
+You paste about 25k tokens of “repo” with a secret phrase buried in it and say “quote the secret.” The reply is a few words. Almost all the work is **reading** the fat prompt before the first token: that’s **TTFT / prefill**.
 
 “Cold” means no prefix cache for that blob yet. If you measured the **second** sticky turn instead, prefill would look insanely fast (cache hit) and lie about how hard the first fat `/plan` feels.
 
-Same GPU, same window idea — two different jobs, so you don’t squash them into one tok/s number.
+Same GPU, same window idea: two different jobs, so you don’t squash them into one tok/s number.
 
 People usually ask one question: how many tokens per second? That misses this write-up. A server that feels snappy on short invent turns can still fail a fat repo `/plan`, and the other way around so scores are tied to **two jobs on one fixed window**, not a single tok/s number.
 
@@ -389,7 +389,7 @@ DSpine B is n-max 15 @ **65k**; others on the shared **96k** window where noted.
 
 | Stack | Warm TTFT (s) | Warm decode | Cold TTFT (s) | Cold prefill tok/s |
 |-------|--------------:|------------:|--------------:|-------------------:|
-| **HyperQwen** DFlash2 n=7 | 0.11 | **253** | — | — |
+| **HyperQwen** DFlash2 n=7 | 0.11 | **253** |: |: |
 | **HyperQwen** DFlash2 n=15 | 0.08 | 256 | 13.6 | 1847 |
 | llama.cpp **DSpine** n=7 @96k | 0.11 | 196 | **8.4** | **3012** |
 | llama.cpp **DSpine** n=15 @65k | 0.10 | 219 | 8.6 | 2914 |
@@ -443,7 +443,7 @@ What I learned:
 1. **Thinking ate the tool budget.** With thinking on and `limit.output: 8192`, a Tetris step finished with `finish_reason=length`, about **8192 reasoning tokens**, **0 output tokens**, and **no tool calls**. The same prompt with thinking off called tools right away. For an agent loop, turn thinking off, or give reasoning a budget large enough that tools still fit.
 2. **8192 was an OpenCode limit, not a HyperQwen limit.**. Use case A’s window here is 65k total. A practical output cap is **16k–32k** (I use **32768**), so the prompt, tools, and history still fit. Later steps were often already **20k–40k** of input. Do not set the output cap equal to `max_model_len`.
 3. **Tool calling works.** HyperQwen’s `qwen3_coder` path, through OpenCode’s OpenAI-compatible client, did multi-step `write` / `edit` / `bash`. Try a one-file write before a large job.
-4. **The prefix cache matters.** Later agent turns showed a large **`cache.read`**. A **65k** window was enough for a small web game. A bigger repo is Use case B on **96k** — test whether that ceiling is enough in a real session.
+4. **The prefix cache matters.** Later agent turns showed a large **`cache.read`**. A **65k** window was enough for a small web game. A bigger repo is Use case B on **96k**: test whether that ceiling is enough in a real session.
 5. **How I run it.** Port 18020 for invent-loop chat and short tests. Port 18021 (the proxy) for OpenCode/OmO. `--auto` for unattended runs. Keep HyperQwen concurrency at **1** on this 4090.
 
 ```bash
