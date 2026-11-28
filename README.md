@@ -7,6 +7,28 @@ Running [Qwen3](https://github.com/QwenLM/Qwen3).8-27b on a 24GB GPU.
 
 Alibaba's family of open-weight LLMs (large language models) released August 2026.
 
+## Contents
+
+- [What](#what)
+- [Why](#why)
+  - [Glossary](#glossary)
+  - [Ways to run a local model](#ways-to-run-a-local-model)
+  - [Context size](#context-size)
+  - [Key-value cache](#key-value-cache)
+- [How](#how)
+  - [The two use cases](#the-two-use-cases)
+  - [DFlash2](#dflash2)
+    - [DFlash2 vs MTP vs DSpine](#dflash2-vs-mtp-vs-dspine)
+- [Results](#results)
+- [Agents (Hermes, OpenCode, OmO)](#agents-hermes-opencode-omo)
+  - [OpenCode on this server](#opencode-on-this-server)
+- [Issues](#issues)
+- [Lessons](#lessons)
+  - [HyperQwen vs a typical vLLM install](#hyperqwen-vs-a-typical-vllm-install)
+  - [When llama.cpp is the better tool](#when-llamacpp-is-the-better-tool)
+  - [What I'd use](#what-id-use)
+- [Reflections](#reflections)
+
 ## What
 
 Qwen3.8-27B is a [comparable](https://www.reddit.com/r/LocalLLM/comments/1voam4p/qwen_38_27b_benchmarks_combined_from_model_cards/) top tier open coding model.
@@ -93,10 +115,10 @@ New in this write-up:
 | Approach | Weights (model/quant) | Size | KV | Context | Decode A / B | Why |
 |----------|----------------------|------|----|---------|-------------:|-----|
 | **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **234 / 177** | Lean weights + quantized KV |
-| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB+ | 180k | **91 / 93** | Leanest KV bytes/tok; no invent-vs-sticky draft setting: B is invent-code on the same MTP config |
-| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | **q4_0** about 5GB+ | **96k** A / **65k** B | **182 / 196** | A n-max 7 @96k; B n-max 15 needs about 65k on 24 GB (faster on code) |
-| FreeToken dense | Qwen3.8-27B NVFP4 (NVIDIA 4-bit float) + host embeds | 20GB+2.4GB | no quant 4GB | 48k | **40 / 41** | Weights eat most of the card; no invent-vs-sticky draft setting: B is invent-code on the same config |
-| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | **45 / 46** | Experts off GPU → room for KV; decode PCIe/CPU-bound; no invent-vs-sticky draft setting: B is invent-code on the same config |
+| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB+ | 180k | 91 / 93 | Leanest KV bytes/tok; no invent-vs-sticky draft setting: B is invent-code on the same MTP config |
+| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | **q4_0** about 5GB+ | 96k A / 65k B | **182 / 196** | A n-max 7 @96k; B n-max 15 needs about 65k on 24 GB (faster on code) |
+| FreeToken dense | Qwen3.8-27B NVFP4 (NVIDIA 4-bit float) + host embeds | 20GB+2.4GB | no quant 4GB | 48k | 40 / 41 | Weights eat most of the card; no invent-vs-sticky draft setting: B is invent-code on the same config |
+| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | 45 / 46 | Experts off GPU → room for KV; decode PCIe/CPU-bound; no invent-vs-sticky draft setting: B is invent-code on the same config |
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
