@@ -16,6 +16,8 @@ Alibaba's family of open-weight LLMs (large language models) released August 202
   - [Context size](#context-size)
   - [Key-value cache](#key-value-cache)
 - [How](#how)
+  - [Thinking](#thinking)
+  - [How the pieces fit together](#how-the-pieces-fit-together)
   - [The two use cases](#the-two-use-cases)
   - [DFlash2](#dflash2)
     - [DFlash2 vs MTP vs DSpine](#dflash2-vs-mtp-vs-dspine)
@@ -114,9 +116,9 @@ New in this write-up:
 |----------|----------------------|------|----|---------|---------------:|-----|
 | **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **177-234** | Lean weights + quantized KV |
 | llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB+ | 180k | 91-93 | Leanest KV bytes/tok |
-| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | **q4_0** about 5GB+ | 96k A / 65k B | **182-196** | A n-max 7 @96k; B n-max 15 needs about 65k on 24 GB (faster on code) |
+| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | **q4_0** about 5GB+ | 65k-96k | **182-196** | Deeper draft; faster on code |
 | FreeToken dense | Qwen3.8-27B NVFP4 (NVIDIA 4-bit float) + host embeds | 20GB+2.4GB | no quant 4GB | 48k | 40-41 | Weights eat most of the card |
-| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | 45-46 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
+| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | 45-46 | Experts in RAM, more KV |
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
@@ -214,7 +216,7 @@ curl -s -H "Authorization: Bearer $VLLM_API_KEY" http://127.0.0.1:18020/health
 
 For short quizzes and for agents like Hermes, turn **thinking off** (`chat_template_kwargs.enable_thinking=false`). If thinking is on, the reply budget fills with reasoning and `content` comes back empty.
 
-**Thinking**
+### Thinking
 
 Some models can “think out loud” before they answer. That private scratchpad is called thinking (also: reasoning / chain-of-thought).
 
@@ -237,7 +239,7 @@ For short quizzes and for agents like Hermes, turn thinking off: not because thi
 
 --- 
 
-**How the pieces fit together:**
+### How the pieces fit together
 
 ```mermaid
 flowchart TB
