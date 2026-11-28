@@ -110,13 +110,13 @@ New in this write-up:
 
 **How they fit on this 24 GB card**
 
-| Approach | Weights (model/quant) | Size | KV | Context | Decode A / B | Why |
-|----------|----------------------|------|----|---------|-------------:|-----|
-| **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **234 / 177** | Lean weights + quantized KV |
-| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB+ | 180k | 91 / 93 | Leanest KV bytes/tok; no invent-vs-sticky draft setting: B is invent-code on the same MTP config |
-| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | **q4_0** about 5GB+ | 96k A / 65k B | **182 / 196** | A n-max 7 @96k; B n-max 15 needs about 65k on 24 GB (faster on code) |
-| FreeToken dense | Qwen3.8-27B NVFP4 (NVIDIA 4-bit float) + host embeds | 20GB+2.4GB | no quant 4GB | 48k | 40 / 41 | Weights eat most of the card; no invent-vs-sticky draft setting: B is invent-code on the same config |
-| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | 45 / 46 | Experts off GPU → room for KV; decode PCIe/CPU-bound; no invent-vs-sticky draft setting: B is invent-code on the same config |
+| Approach | Weights (model/quant) | Size | KV | Context | Decode min-max | Why |
+|----------|----------------------|------|----|---------|---------------:|-----|
+| **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **177-234** | Lean weights + quantized KV |
+| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB+ | 180k | 91-93 | Leanest KV bytes/tok |
+| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | **q4_0** about 5GB+ | 96k A / 65k B | **182-196** | A n-max 7 @96k; B n-max 15 needs about 65k on 24 GB (faster on code) |
+| FreeToken dense | Qwen3.8-27B NVFP4 (NVIDIA 4-bit float) + host embeds | 20GB+2.4GB | no quant 4GB | 48k | 40-41 | Weights eat most of the card |
+| FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | 45-46 | Experts off GPU → room for KV; decode PCIe/CPU-bound |
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
