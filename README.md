@@ -38,6 +38,43 @@ A community Qwen 3.8 **W4A16** quantization at **22GB** + KV (key-value) cache +
 
 HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that finishes that fit (**including a DFlash2 drafter model**) and documents how to serve it.
 
+<details>
+<summary><strong>Key concepts</strong></summary>
+
+Primer (how LLMs, attention, and KV work): [AI Theory](https://github.com/Vince-0/AI_Theory)
+
+New in this write-up:
+- Block guesses
+- Two HyperQwen harness jobs (invent vs sticky) on a shared 96k window
+- Copying from the prompt
+- Prefix cache; warm vs cold measurement
+- Smaller conversation memory so long chats fit. 
+
+### Glossary
+
+| Term | Meaning | On this run |
+|------|---------|-------------|
+| **VRAM** | Memory on the GPU. The model has to live here to run quickly. | Card is **24 GB**, but under WSL + Windows display roughly **0.7–1.2 GB** is already used (WSLg / `Xwayland`). Usable for the server is about **22.8–23.3 GB**. |
+| **Dense 27B** | One model that runs every layer for every token. | Qwen3.8-27B. Different from [#4](https://github.com/Vince-0/AdventuresInAICoding4), where specialist layers sat in system RAM. |
+| **W4A16** | Weights stored in 4-bit. Math done in about 16-bit. | How 27B fits on one 4090. |
+| **[GPTQ](https://arxiv.org/abs/2210.17323)** | **G**enerative **P**re-trained **T**ransformer **Q**uantization: a calibration method that squeezes weights to W4A16 instead of only rounding each number. | How the DFlash2 drafter was shrunk (3.85 GB BF16 → 1.2 GB). The main 27B body used AutoRound instead. |
+| **KV cache** | Memory of what the model has already read in this chat. | Longer chats and bigger pasted docs use more of it, so less VRAM is left. |
+| **Prefill vs decode** | **Prefill** = first big read of the prompt (builds KV). **Decode** = write the reply one token at a time. | Fat `@file` / paste is mostly prefill (time + VRAM scratch). Chat snappiness is mostly decode tok/s. |
+| **Frozen vLLM + HyperQwen** | A known vLLM version, plus patches and scripts that were tested together. | Install, patch, prepare weights, `start_qwen.sh`. |
+| **Speculative decoding** | A small model guesses the next tokens. The big model accepts or rejects them. | [#3](https://github.com/Vince-0/AdventuresInAICoding3) used MTP for this. Here the guesser is DFlash2. |
+| **DFlash2** | The guesser proposes a block of tokens. The 27B model checks the block. | `SPEC=dflash2` for both practical use cases. |
+| **Lookup drafting** | If the reply is mostly text already in the prompt, take those tokens from history. | Speed win inside Use case B when refactoring or quoting what is already in context. |
+| **Prefix cache** | Keep the KV for a prompt you will send again, so the next turn skips re-reading it. | First fat read is slow. Second turn on the same prefix is where agents feel fast. |
+| **Warm** | A measured turn after the server has already been chatting; caches may already be filled. | Invent-code (mergesort): short prompt, long reply — we care about **decode**. |
+| **Cold** | A measured turn the **first** time a fat prompt is seen; no prefix-cache hit yet. | Sticky quote (about 25k): tiny reply — we care about **TTFT / prefill**. |
+| **`-fast` weights** | Extra repack of a few hot parts (output head and draft bits). | Used automatically when those files are present. |
+| **Context / KV** | How the server stores “what I’ve already read,” which sets how long a chat can be. | Daily: **int8 KV at 96k** — shared A/B window on this WSL box. |
+| **Marlin repack** | At startup, rewrite the 4-bit weights into a layout the GPU kernels want. | Can run out of memory on WSL if the allocator setting is wrong. See Issues. |
+
+---
+
+</details>
+
 ### Ways to run a local model
 
 | Approach | Pros | Cons |
@@ -56,8 +93,8 @@ HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that
 | Approach | Weights (model/quant) | Size | KV | Context | Decode A / B | Why |
 |----------|----------------------|------|----|---------|-------------:|-----|
 | **HyperQwen** | Qwen3.8-27B W4A16 + **DFlash2** | 15GB+1.2GB | int8 5GB | 96k | **234 / 177** | Lean weights + quantized KV |
-| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB + grows | 180k | **91 / 93** | Leanest KV bytes/tok; no invent-vs-sticky draft setting — B is invent-code on the same MTP config |
-| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | q4_0 | **96k** A / **65k** B | **182 / 196** | A n-max 7 @96k; B n-max 15 needs ~65k on 24 GB (faster on code) |
+| llama.cpp GGUF | Qwen3.8-27B UD-Q4_K_M GGUF | 16GB | **q4_0** 5GB+ | 180k | **91 / 93** | Leanest KV bytes/tok; no invent-vs-sticky draft setting — B is invent-code on the same MTP config |
+| llama.cpp + **DSpine** | UD-Q4_K_M + [DSpine-b16 Q4_K_M](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) | 16GB+1.3GB | **q4_0** about 5GB+ | **96k** A / **65k** B | **182 / 196** | A n-max 7 @96k; B n-max 15 needs about 65k on 24 GB (faster on code) |
 | FreeToken dense | Qwen3.8-27B NVFP4 (NVIDIA 4-bit float) + host embeds | 20GB+2.4GB | no quant 4GB | 48k | **40 / 41** | Weights eat most of the card; no invent-vs-sticky draft setting — B is invent-code on the same config |
 | FreeToken MoE | **Qwen3.6-35B-A3B** NVFP4 | 22GB | no quant 5GB + host experts | **256k** | **45 / 46** | Experts off GPU → room for KV; decode PCIe/CPU-bound; no invent-vs-sticky draft setting — B is invent-code on the same config |
 
@@ -145,7 +182,7 @@ Python venv and HyperQwen’s `docs/install.md`.
 
 Set variables and start:
 ```bash
-cd ~/LLM/HyperQwen
+cd $HOME/LLM/HyperQwen
 set -a && source .env && set +a
 # Daily profile: int8 KV at 96k
 export PATH="$PWD/venv/bin:$PATH"
@@ -175,43 +212,6 @@ If thinking is off, almost every token goes to the real answer or to tools. Shor
 Agents get tool calls instead of a full belly of private monologue.
 
 For short quizzes and for agents like Hermes, turn thinking off — not because thinking is “bad,” but because it fills the reply budget first, and what’s left may be zero for the answer or for tools.
-
-<details>
-<summary><strong>Key concepts</strong></summary>
-
-Primer (how LLMs, attention, and KV work): [AI Theory](https://github.com/Vince-0/AI_Theory)
-
-New in this write-up:
-- Block guesses
-- Two HyperQwen harness jobs (invent vs sticky) on a shared 96k window
-- Copying from the prompt
-- Prefix cache; warm vs cold measurement
-- Smaller conversation memory so long chats fit. 
-
-### Glossary
-
-| Term | Meaning | On this run |
-|------|---------|-------------|
-| **VRAM** | Memory on the GPU. The model has to live here to run quickly. | Card is **24 GB**, but under WSL + Windows display roughly **0.7–1.2 GB** is already used (WSLg / `Xwayland`). Usable for the server is about **22.8–23.3 GB**. |
-| **Dense 27B** | One model that runs every layer for every token. | Qwen3.8-27B. Different from [#4](https://github.com/Vince-0/AdventuresInAICoding4), where specialist layers sat in system RAM. |
-| **W4A16** | Weights stored in 4-bit. Math done in about 16-bit. | How 27B fits on one 4090. |
-| **[GPTQ](https://arxiv.org/abs/2210.17323)** | **G**enerative **P**re-trained **T**ransformer **Q**uantization: a calibration method that squeezes weights to W4A16 instead of only rounding each number. | How the DFlash2 drafter was shrunk (3.85 GB BF16 → 1.2 GB). The main 27B body used AutoRound instead. |
-| **KV cache** | Memory of what the model has already read in this chat. | Longer chats and bigger pasted docs use more of it, so less VRAM is left. |
-| **Prefill vs decode** | **Prefill** = first big read of the prompt (builds KV). **Decode** = write the reply one token at a time. | Fat `@file` / paste is mostly prefill (time + VRAM scratch). Chat snappiness is mostly decode tok/s. |
-| **Frozen vLLM + HyperQwen** | A known vLLM version, plus patches and scripts that were tested together. | Install, patch, prepare weights, `start_qwen.sh`. |
-| **Speculative decoding** | A small model guesses the next tokens. The big model accepts or rejects them. | [#3](https://github.com/Vince-0/AdventuresInAICoding3) used MTP for this. Here the guesser is DFlash2. |
-| **DFlash2** | The guesser proposes a block of tokens. The 27B model checks the block. | `SPEC=dflash2` for both practical use cases. |
-| **Lookup drafting** | If the reply is mostly text already in the prompt, take those tokens from history. | Speed win inside Use case B when refactoring or quoting what is already in context. |
-| **Prefix cache** | Keep the KV for a prompt you will send again, so the next turn skips re-reading it. | First fat read is slow. Second turn on the same prefix is where agents feel fast. |
-| **Warm** | A measured turn after the server has already been chatting; caches may already be filled. | Invent-code (mergesort): short prompt, long reply — we care about **decode**. |
-| **Cold** | A measured turn the **first** time a fat prompt is seen; no prefix-cache hit yet. | Sticky quote (~25k): tiny reply — we care about **TTFT / prefill**. |
-| **`-fast` weights** | Extra repack of a few hot parts (output head and draft bits). | Used automatically when those files are present. |
-| **Context / KV** | How the server stores “what I’ve already read,” which sets how long a chat can be. | Daily: **int8 KV at 96k** — shared A/B window on this WSL box. |
-| **Marlin repack** | At startup, rewrite the 4-bit weights into a layout the GPU kernels want. | Can run out of memory on WSL if the allocator setting is wrong. See Issues. |
-
----
-
-</details>
 
 --- 
 
@@ -280,19 +280,19 @@ Ask:
 
 **Use case B — sticky (quote from a fat document)**
 
-Paste a long filler document (~**25k** prompt tokens) that hides a marker near the end, then ask only:
+Paste a long filler document (about **25k** prompt tokens) that hides a marker near the end, then ask only:
 
 > Quote the secret phrase from the document exactly, nothing else.
 
 - Pass: the reply contains the marker (e.g. `UNIQUE_MARKER_QZ9_MODE_B`).
-- Reply is tiny (~9 tokens); the hard part is **reading** the fat prompt not writing a long answer.
+- Reply is tiny (about 9 tokens); the hard part is **reading** the fat prompt not writing a long answer.
 - What it feels like: `/plan`, fat `@file`, “quote this,” in-context edit — the answer is already in what you pasted.
 - On HyperQwen we boot sticky draft length **n=15** (`DFLASH_TOKENS=15`) so lookup can copy from the prompt.
 
 | | **A invent** | **B sticky** |
 |--|--------------|--------------|
 | **Job** | Create new code | Reuse text already in the prompt |
-| **Prompt** | Mergesort + docstring + `__main__` | ~25k doc + “quote the secret phrase…” |
+| **Prompt** | Mergesort + docstring + `__main__` | about 25k doc + “quote the secret phrase…” |
 | **Quality check** | Exec sort tests | Marker present in reply |
 | **Speed that matters** | **Decode** tok/s (long reply) | **TTFT (time to first token) / prefill** tok/s (fat read; short reply) |
 | **HQ draft knob** | n=7 | n=15 |
@@ -337,17 +337,17 @@ Same idea (guess → big model checks), different guesser.
 
 | | **MTP** | **DFlash2** | **DSpine** |
 |---|---------|-------------|------------|
-| **What guesses** | Small **heads baked into** Qwen3.8 (`nextn`) | **Separate** ~1.9B draft model | **Separate** five-layer draft; reads 5 target hidden layers |
+| **What guesses** | Small **heads baked into** Qwen3.8 (`nextn`) | **Separate** about 1.9B draft model | **Separate** five-layer draft; reads 5 target hidden layers |
 | **How it guesses** | Next few tokens from those heads | Block draft (diffusion-style) | Parallel 16-token block + code bridge + last-write refine ([paper](https://arxiv.org/abs/2609.36173)) |
-| **Extra files** | Often already in the GGUF | W4A16 drafter (HyperQwen) | [DSpine-b16 GGUF](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) (~1.3 GB Q4_K_M) |
+| **Extra files** | Often already in the GGUF | W4A16 drafter (HyperQwen) | [DSpine-b16 GGUF](https://huggingface.co/aj9o9/Qwen3.8-27B-DSpine-b16-GGUF) (about 1.3 GB Q4_K_M) |
 | **Typical home** | Stock llama.cpp `draft-mtp` | HyperQwen `SPEC=dflash2` | [Ajay9o9 llama.cpp `dspine`](https://github.com/Ajay9o9/llama.cpp/tree/dspine) only (stock llama refuses the file) |
-| **On this box @ 96k** | prose **74** / code **90** (MTP n=2) | prose **134** / code **232** (DFlash2 n=7) | prose **81** / code **138** (DSpine n=7); usable sticky **~97.7k** |
+| **On this box @ 96k** | prose **74** / code **90** (MTP n=2) | prose **134** / code **232** (DFlash2 n=7) | prose **81** / code **138** (DSpine n=7); usable sticky **about 97.7k** |
 
 MTP = the model’s **built-in mini-crystal-ball**.
 
 DFlash2 = a **sidekick model** that blurts a whole short guess for the big model to mark right/wrong.
 
-DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel drafts, hungrier for VRAM when `n-max` is high (n-max 15 → ~65k boot on 24 GB; n-max 7 keeps the **96k** window comparable to HyperQwen).
+DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel drafts, hungrier for VRAM when `n-max` is high (n-max 15 → about 65k boot on 24 GB; n-max 7 keeps the **96k** window comparable to HyperQwen).
 
 ---
 
@@ -366,13 +366,13 @@ DSpine = a **deeper sidekick** (extends the DFlash family): longer parallel draf
 
 **Warm** = short question, long answer, after the server has already been chatting a bit.
 
-You ask for a mergesort. The prompt is tiny (~80 tokens). The model then **writes a lot of code**. What you feel is how fast those output tokens stream — that’s **decode**. TTFT is almost nothing because there’s almost nothing to read first.
+You ask for a mergesort. The prompt is tiny (about 80 tokens). The model then **writes a lot of code**. What you feel is how fast those output tokens stream — that’s **decode**. TTFT is almost nothing because there’s almost nothing to read first.
 
 “Warm” means a prior turn already filled caches, so we’re not pretending this is the first breath of the day. We care about the **writing** phase.
 
 **Cold** = fat document dumped in, tiny answer, **first** time that document is seen.
 
-You paste ~25k tokens of “repo” with a secret phrase buried in it and say “quote the secret.” The reply is a few words. Almost all the work is **reading** the fat prompt before the first token — that’s **TTFT / prefill**.
+You paste about 25k tokens of “repo” with a secret phrase buried in it and say “quote the secret.” The reply is a few words. Almost all the work is **reading** the fat prompt before the first token — that’s **TTFT / prefill**.
 
 “Cold” means no prefix cache for that blob yet. If you measured the **second** sticky turn instead, prefill would look insanely fast (cache hit) and lie about how hard the first fat `/plan` feels.
 
@@ -414,13 +414,13 @@ model    = qwen3.8-27b
 # OpenCode + oh-my-openagent (OmO)
 # The proxy turns thinking off and raises max_tokens if the client sends a tiny cap.
 base_url = http://127.0.0.1:18021/v1   # proxy in front of :18020
-model    = hyperqwen/qwen3.8-27b       # ~/.config/opencode/opencode.json
+model    = hyperqwen/qwen3.8-27b       # $HOME/.config/opencode/opencode.json
 ```
 
 - Hermes one-shot returned **`PHASE7_OK`** (temporary `model.base_url` override, then put back).
 - Use case A invent-loop smoke (`fizzbuzz`) passed in about **0.64 s**.
 - Use case B sticky quote on **96k** passed through **25138** prompt tokens (see Results).
-- **OpenCode 1.19.5 + oh-my-openagent** on Use case A built a playable **`~/LLM/web-tetris`** (`index.html`, `game.js`, `style.css`, `README.md`) with real tool calls (`write`, `edit`, `bash`).
+- **OpenCode 1.19.5 + oh-my-openagent** on Use case A built a playable **`$HOME/LLM/web-tetris`** (`index.html`, `game.js`, `style.css`, `README.md`) with real tool calls (`write`, `edit`, `bash`).
 
 ### OpenCode on this server
 
@@ -433,7 +433,7 @@ What ran:
 | Layer | Setting |
 |-------|---------|
 | Server | Use case A invent-loop: `SPEC=dflash2`, n=7, **65k** window, port 18020 |
-| Harness | OpenCode + `oh-my-openagent@latest`. Agents in `~/.omo/omo.jsonc` point at `hyperqwen/qwen3.8-27b`. |
+| Harness | OpenCode + `oh-my-openagent@latest`. Agents in `$HOME/.omo/omo.jsonc` point at `hyperqwen/qwen3.8-27b`. |
 | Proxy | `HyperQwen/bench-results/thinking_off_proxy.py` on port **18021**. Forces `enable_thinking=false` and raises `max_tokens` if it is too low. |
 | OpenCode limits | `context: 65536`, **`output: 32768`**. It was **8192**, which was too small. |
 | GPU concurrency | `background_task.providerConcurrency.hyperqwen: 1` |
@@ -448,10 +448,10 @@ What I learned:
 
 ```bash
 # Boot HyperQwen, then:
-export HYPERQWEN_API_KEY="$(grep '^VLLM_API_KEY=' ~/LLM/HyperQwen/.env | cut -d= -f2)"
-python3 ~/LLM/HyperQwen/bench-results/thinking_off_proxy.py &   # :18021
+export HYPERQWEN_API_KEY="$(grep '^VLLM_API_KEY=' $HOME/LLM/HyperQwen/.env | cut -d= -f2)"
+python3 $HOME/LLM/HyperQwen/bench-results/thinking_off_proxy.py &   # :18021
 export PATH="$HOME/.bun/bin:$HOME/.opencode/bin:$PATH"
-opencode run --dir ~/LLM/web-tetris -m hyperqwen/qwen3.8-27b --auto "…"
+opencode run --dir $HOME/LLM/web-tetris -m hyperqwen/qwen3.8-27b --auto "…"
 ```
 
 ---
