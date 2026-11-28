@@ -283,7 +283,7 @@ Paste a long filler document (~**25k** prompt tokens) that hides a marker near t
 > Quote the secret phrase from the document exactly, nothing else.
 
 - Pass: the reply contains the marker (e.g. `UNIQUE_MARKER_QZ9_MODE_B`).
-- Reply is tiny (~9 tokens); the hard part is **reading** the fat prompt (prefill / TTFT), not writing a long answer.
+- Reply is tiny (~9 tokens); the hard part is **reading** the fat prompt not writing a long answer.
 - What it feels like: `/plan`, fat `@file`, “quote this,” in-context edit — the answer is already in what you pasted.
 - On HyperQwen we boot sticky draft length **n=15** (`DFLASH_TOKENS=15`) so lookup can copy from the prompt.
 
@@ -465,7 +465,6 @@ opencode run --dir ~/LLM/web-tetris -m hyperqwen/qwen3.8-27b --auto "…"
 | OpenCode: `length`, `reasoning=8192`, `output=0`, no tools | Thinking used the whole output cap. Turn thinking off and set **`output` to 32k**. |
 | Use case B sticky OOM / WSL hard reset | Card is 24 GB; Windows/WSLg already uses **1.2 GB**, so usable is **23 GB**. **Do not raise** `KV_MEM` above the profile default. On `CTX=long`, **lower** it (e.g. `4.0e9`) and cap `MAX_LEN`. Quote then passed through **25138** prompt tokens (targets 4k→24k). |
 | `VLLM_WSL2_ENABLE_PIN_MEMORY=1` fails Marlin load | Boot with **`pin_memory=0`** on this box for now. |
-| C0 wall-clock around 220–250 tok/s | Do not use that as the speed number. Layer B invent-loop re-test is **156.2** (safe boot); stock CG was **175.1**. |
 | FreeToken `--moe-cache-auto` on the 4090 | Out of memory. Pin moe and KV for the comparison. |
 | Abliterated W4A16 as a drop-in (leminkozey) | Heavier than `-fast`. DFlash/MTP unpack OOMs or hard-crashes WSL. Not an invent-loop substitute unless you run `SPEC=off` and a smaller KV. |
 | A VRAM OOM sometimes kills the whole WSL distro | Same cliff as a CUDA OOM. Leave headroom. |
