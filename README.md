@@ -100,6 +100,8 @@ New in this write-up:
 
 I like the vanilla llama.cpp GGUF approach for a good context size and decode speed.
 
+Qwen3.8 can't be a MoE packaged model because it is a dense model with every layer involved in every word.
+
 ### Context size
 
 Context size is how much of the conversation + pasted files the model can “see at once” (in tokens).
