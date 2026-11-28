@@ -36,7 +36,7 @@ Vanilla Qwen 3.8 BF16 (16-bit full-precision) 27B full weights at **56GB** does 
 
 A community Qwen 3.8 **W4A16** quantization at **22GB** + KV (key-value) cache + context almost does. 
 
-HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that finishes that fit (**including a DFlash2 drafter model**) and documents how to serve it.
+HyperQwen is a [vLLM](https://vllm.ai/) server engine patch + weight recipe that finishes that fit (**including a DFlash2 drafter model**) and documents how to serve it. A drafter is a small helper model that guesses the next few words so the big model doesn’t have to invent them one-by-one.
 
 <details>
 <summary><strong>Key concepts</strong></summary>
