@@ -80,7 +80,7 @@ New in this write-up:
 | Approach | Pros | Cons |
 |----------|------|------|
 | **HyperQwen** | Custom vLLM patch + weights, **fastest decode** DFlash2 | Medium context |
-| llama.cpp GGUF (model file format) | GGUF package, largest dense context, MTP | Slower decode than HyperQwen |
+| llama.cpp GGUF (model file format) | GGUF package, largest dense context, MTP | Slower output(decode) than HyperQwen |
 | llama.cpp + **DSpine** | Same GGUF target + DSpine draft; beats MTP on invent | Needs [Ajay9o9 `dspine` fork](https://github.com/Ajay9o9/llama.cpp/tree/dspine) (not stock llama); loses to HyperQwen DFlash2 on prose **and** code |
 | FreeToken dense | Same Qwen3.8 family on FreeToken | Big weights = small context |
 | FreeToken MoE | MoE bigger than VRAM (experts in RAM); **largest context** | Different model (3.6-A3B); PCIe (GPU↔CPU bus)/CPU-bound decode |
